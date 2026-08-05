@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">BricksApp</string>
+    <string name="accessibility_service_description">Used to detect and block distracting apps during focus sessions.</string>
+</resources>

@@ -1,0 +1,313 @@
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated, Pressable } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Screen } from '../components/Screen';
+import { SectionHeader } from '../components/SectionHeader';
+import { RingProgress } from '../components/RingProgress';
+import { Button } from '../components/Button';
+import { Icon, IconName } from '../components/Icon';
+import { defaultTheme as theme } from '../theme';
+import { useFocusStore } from '../state/useFocusStore';
+import { FocusLock } from './FocusLock';
+import { db } from '../db';
+import type { Tag, BlockedAttempt } from '../db/types';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { HomeStackParamList } from '../navigation/types';
+import { getTodayStats, TodayStats } from '../services/stats/statsService';
+import { useNfcSessionStart } from '../hooks/useNfcSessionStart';
+
+const categories = [
+  { id: 'social', label: 'Social', icon: 'social' as IconName },
+  { id: 'games', label: 'Games', icon: 'gamepad' as IconName },
+  { id: 'video', label: 'Video', icon: 'film' as IconName },
+  { id: 'news', label: 'News', icon: 'newspaper' as IconName },
+  { id: 'shopping', label: 'Shopping', icon: 'shopping' as IconName },
+  { id: 'messaging', label: 'Messages', icon: 'message' as IconName },
+];
+
+const locIcon: Record<string, IconName> = {
+  desk: 'grid',
+  bed: 'grid',
+  door: 'grid',
+  car: 'grid'
+};
+
+export function Home() {
+  const { machine, todayFocusSec, hydrate, startSession, liveBlocked } = useFocusStore();
+  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [activeAppsCount, setActiveAppsCount] = useState(0);
+  const [blockCategories, setBlockCategories] = useState<Record<string, boolean>>({});
+  const [activity] = useState<BlockedAttempt[]>([]);
+  
+  const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
+  const [todaySessionsCount, setTodaySessionsCount] = useState(0);
+
+  const dotAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    hydrate();
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotAnim, { toValue: 0.25, duration: 700, useNativeDriver: true }),
+        Animated.timing(dotAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const load = async () => {
+        const stats = await getTodayStats();
+        const t = await db.tags.listTags();
+        const apps = await db.blockedApps.listBlockedApps();
+        const catStr = await db.settings.get('block_categories');
+        
+        const now = Math.floor(Date.now() / 1000);
+        const d = new Date(now * 1000);
+        d.setHours(0,0,0,0);
+        const start = Math.floor(d.getTime() / 1000);
+        const sessions = await db.sessions.sessionsBetween(start, now);
+
+        if (active) {
+          setTodayStats(stats);
+          setTags(t);
+          setActiveAppsCount(apps.length);
+          setTodaySessionsCount(sessions.length);
+          if (catStr) {
+            try { setBlockCategories(JSON.parse(catStr)); } catch { }
+          }
+          if (stats) {
+            useFocusStore.setState({ liveBlocked: Math.max(useFocusStore.getState().liveBlocked, stats.blocked) });
+          }
+        }
+      };
+      load();
+      return () => { active = false; };
+    }, [])
+  );
+
+  const toggleCategory = async (id: string) => {
+    const next = { ...blockCategories, [id]: !blockCategories[id] };
+    setBlockCategories(next);
+    await db.settings.set('block_categories', JSON.stringify(next));
+  };
+
+  const onStartFocus = () => {
+    if (tags.length > 0) {
+      startSession(tags[0].id);
+    } else {
+      navigation.navigate('AddBrick');
+    }
+  };
+
+  const handleRegistered = async (tagId: string) => {
+    if (machine === 'active') return;
+    await startSession(tagId);
+    navigation.navigate('FocusLock');
+  };
+
+  const handleUnregistered = () => {
+    if (machine === 'active') return;
+    navigation.navigate('AddBrick');
+  };
+
+  useNfcSessionStart({
+    onRegistered: handleRegistered,
+    onUnregistered: handleUnregistered,
+    registeredTagIds: tags.map(t => t.id)
+  });
+
+  if (machine === 'active') {
+    return <FocusLock />;
+  }
+
+  const focusSec = todayStats ? todayStats.focusSec : todayFocusSec;
+  const goalSec = todayStats ? todayStats.goalSec : 210 * 60;
+  
+  const h = Math.floor(focusSec / 3600);
+  const m = Math.floor((focusSec % 3600) / 60);
+  const goalH = Math.floor(goalSec / 3600);
+  const goalM = Math.floor((goalSec % 3600) / 60);
+
+  const goalPct = Math.min(focusSec / goalSec, 1);
+  const goalPctStr = `${Math.floor(goalPct * 100)}%`;
+
+  return (
+    <Screen style={{ paddingHorizontal: 0 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
+        
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.dateLine}>Wednesday, Jul 30</Text>
+            <Text style={styles.greeting}>Good afternoon, Alex</Text>
+          </View>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>AK</Text>
+          </View>
+        </View>
+
+        <View style={styles.heroCard}>
+          <View style={styles.heroTop}>
+            <Text style={styles.heroEyebrow}>FOCUS TODAY</Text>
+            {todayStats && todayStats.streakDays > 0 ? (
+              <View style={[styles.activePill, { backgroundColor: theme.colors.card2 }]}>
+                <Icon name="flame" size={14} color={theme.colors.accent} />
+                <Text style={styles.activePillText}>{todayStats.streakDays}-day streak</Text>
+              </View>
+            ) : (
+              <View style={styles.activePill}>
+                <Animated.View style={[styles.liveDot, { opacity: dotAnim }]} />
+                <Text style={styles.activePillText}>{activeAppsCount} apps blocked</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.heroBody}>
+            <View style={styles.heroRing}>
+              <RingProgress size={98} stroke={9} color={theme.colors.accent} trackColor={theme.colors.track} progress={goalPct}>
+                <Text style={styles.heroRingPct}>{goalPctStr}</Text>
+                <Text style={styles.heroRingOf}>OF GOAL</Text>
+              </RingProgress>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroTime}>{h}h {m}m</Text>
+              <Text style={styles.heroGoal}>{h}h {m}m of {goalH}h {goalM > 0 ? `${goalM}m ` : ''}goal</Text>
+            </View>
+          </View>
+          <Button label="Start Focus Session" icon="play" onPress={onStartFocus} />
+        </View>
+
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricCard}>
+            <View style={styles.metricIconBox}><Icon name="clock" size={18} color={theme.colors.blue} /></View>
+            <View>
+              <Text style={styles.metricVal}>{todaySessionsCount}</Text>
+              <Text style={styles.metricLabel}>Sessions</Text>
+            </View>
+          </View>
+          <View style={styles.metricCard}>
+            <View style={styles.metricIconBox}><Icon name="shield" size={18} color={theme.colors.accent} /></View>
+            <View>
+              <Text style={styles.metricVal}>{liveBlocked}</Text>
+              <Text style={styles.metricLabel}>Blocked</Text>
+            </View>
+          </View>
+        </View>
+
+        <SectionHeader title="My Bricks" right="Tap a Brick to focus" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 11 }}>
+          {tags.map((tag) => {
+            const appsN = Object.values(tag.categories || {}).filter(Boolean).length;
+            const modeLabel = tag.mode === 'deep' ? 'Deep Work' : tag.mode === 'wind' ? 'Wind Down' : tag.mode === 'custom' ? 'Custom' : 'Recovered';
+            const iconName = locIcon[tag.location || 'desk'] || 'grid';
+            return (
+              <Pressable key={tag.id} style={styles.brickCard} onPress={() => navigation.navigate('AddBrick')}>
+                <View style={styles.brickCardTop}>
+                  <View style={styles.brickIconBox}>
+                    <Icon name={iconName} size={20} color={theme.colors.accent} />
+                  </View>
+                  <View style={styles.brickDot} />
+                </View>
+                <View>
+                  <Text style={styles.brickName}>{tag.name}</Text>
+                  <Text style={styles.brickMeta}>{modeLabel} · {appsN} apps</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+          <Pressable style={styles.addBrickCard} onPress={() => navigation.navigate('AddBrick')}>
+            <View style={styles.brickIconBox}>
+              <Icon name="plus" size={20} color={theme.colors.accent} />
+            </View>
+            <View>
+              <Text style={styles.brickName}>Add a Brick</Text>
+              <Text style={styles.brickMeta}>Tap to scan a new tag</Text>
+            </View>
+          </Pressable>
+        </ScrollView>
+
+        <SectionHeader title="Blocking" right="Tap to toggle" />
+        <View style={styles.blockingGrid}>
+          {categories.map((c) => {
+            const on = !!blockCategories[c.id];
+            return (
+              <Pressable key={c.id} style={[styles.blockCard, on && styles.blockCardOn]} onPress={() => toggleCategory(c.id)}>
+                <View style={[styles.blockIconBox, on && styles.blockIconBoxOn]}>
+                  <Icon name={c.icon} size={20} color={on ? '#fff' : theme.colors.muted} />
+                </View>
+                <View>
+                  <Text style={[styles.blockLabel, on && { color: '#fff' }]}>{c.label}</Text>
+                  <Text style={[styles.blockStatus, on && { color: theme.colors.accent }]}>{on ? 'BLOCKED' : 'Allowed'}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <SectionHeader title="Live Activity" right={<View style={styles.livePill}><Animated.View style={[styles.livePillDot, { opacity: dotAnim }]} /><Text style={styles.livePillText}>Live</Text></View>} />
+        <View style={styles.activityCard}>
+          {activity.length === 0 && (
+            <View style={styles.activityRow}>
+              <Text style={{ color: theme.colors.faint, fontSize: 12 }}>No recent activity.</Text>
+            </View>
+          )}
+        </View>
+
+      </ScrollView>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 22 },
+  dateLine: { fontSize: 13, color: theme.colors.muted, fontWeight: '600' },
+  greeting: { fontSize: 25, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.75, marginTop: 3, fontFamily: 'Manrope' },
+  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.colors.card2, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: theme.colors.text, fontWeight: '800', fontSize: 15, letterSpacing: 0.3, fontFamily: 'Manrope' },
+  
+  heroCard: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 24, padding: 22, paddingBottom: 24 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  heroEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.76, color: theme.colors.muted, fontFamily: 'Manrope' },
+  activePill: { backgroundColor: theme.colors.card2, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.green },
+  activePillText: { fontSize: 12, fontWeight: '700', color: theme.colors.text, fontFamily: 'Manrope' },
+  heroBody: { flexDirection: 'row', alignItems: 'center', gap: 22, marginBottom: 20 },
+  heroRing: { position: 'relative', width: 98, height: 98 },
+  heroRingPct: { fontSize: 19, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.38, fontFamily: 'Manrope' },
+  heroRingOf: { fontSize: 9, color: theme.colors.muted, fontWeight: '700', letterSpacing: 0.72, fontFamily: 'Manrope' },
+  heroTime: { fontSize: 40, fontWeight: '800', letterSpacing: -1.6, color: theme.colors.text, fontVariant: ['tabular-nums'], fontFamily: 'Manrope' },
+  heroGoal: { fontSize: 13, color: theme.colors.muted, fontWeight: '600', marginTop: 8, fontFamily: 'Manrope' },
+  
+  metricsGrid: { flexDirection: 'row', gap: 11, marginTop: 14 },
+  metricCard: { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 13, gap: 12 },
+  metricIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
+  metricVal: { fontSize: 20, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.4, fontVariant: ['tabular-nums'], fontFamily: 'Manrope' },
+  metricLabel: { fontSize: 11, color: theme.colors.muted, fontWeight: '600', marginTop: 1, fontFamily: 'Manrope' },
+
+  brickCard: { width: 150, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, minHeight: 118, justifyContent: 'space-between' },
+  brickCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  brickIconBox: { width: 40, height: 40, borderRadius: 11, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
+  brickDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.green, marginTop: 5 },
+  brickName: { fontSize: 16, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.32, fontFamily: 'Manrope' },
+  brickMeta: { fontSize: 11, fontWeight: '600', color: theme.colors.muted, marginTop: 2, fontFamily: 'Manrope' },
+
+  addBrickCard: { width: 150, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: 18, padding: 16, minHeight: 118, justifyContent: 'space-between', borderStyle: 'dashed' },
+
+  blockingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
+  blockCard: { width: '31%', minHeight: 104, borderRadius: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, padding: 12, justifyContent: 'space-between' },
+  blockCardOn: { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent },
+  blockIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
+  blockIconBoxOn: { backgroundColor: theme.colors.accent },
+  blockLabel: { fontSize: 13, fontWeight: '700', color: theme.colors.muted, fontFamily: 'Manrope' },
+  blockStatus: { fontSize: 10, fontWeight: '800', color: theme.colors.faint, letterSpacing: 1, marginTop: 2, fontFamily: 'Manrope' },
+
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  livePillDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.green },
+  livePillText: { fontSize: 12, fontWeight: '700', color: theme.colors.green, fontFamily: 'Manrope' },
+
+  activityCard: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, overflow: 'hidden' },
+  activityRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderTopWidth: 1, borderTopColor: theme.colors.border },
+});

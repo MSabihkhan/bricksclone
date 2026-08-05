@@ -1,0 +1,364 @@
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Screen } from '../components/Screen';
+import { Card } from '../components/Card';
+import { Switch } from '../components/Switch';
+import { Slider } from '../components/Slider';
+import { SegmentedControl } from '../components/SegmentedControl';
+import { Icon } from '../components/Icon';
+import { useTheme } from '../theme/ThemeContext';
+import { SettingsStackParamList } from '../navigation/types';
+import { db } from '../db';
+import { getPeriodStats } from '../services/stats/statsService';
+
+type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
+
+export function Settings() {
+  const theme = useTheme();
+  const navigation = useNavigation<NavProp>();
+  
+  const [streak, setStreak] = useState(0);
+  const [blockedAppsCount, setBlockedAppsCount] = useState(0);
+
+  const [strictMode, setStrictMode] = useState(false);
+  const [breakReminders, setBreakReminders] = useState(false);
+  const [autoPilot, setAutoPilot] = useState(false);
+  
+  const [intensity, setIntensity] = useState(50);
+  const [dailyGoal, setDailyGoal] = useState(210);
+  
+  const [appearance, setAppearance] = useState('dark');
+  const [notifications, setNotifications] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const load = async () => {
+        try {
+          const stats = await getPeriodStats('day');
+          const apps = await db.blockedApps.listBlockedApps();
+          const sets = await db.settings.getAll();
+          
+          if (active) {
+            setStreak(stats.streakDays || 0);
+            setBlockedAppsCount(apps.length);
+            
+            setStrictMode(sets.strict_mode === '1');
+            setBreakReminders(sets.break_reminders === '1');
+            setAutoPilot(sets.auto_pilot === '1');
+            
+            if (sets.intensity) setIntensity(Number(sets.intensity));
+            if (sets.daily_goal) setDailyGoal(Math.floor(Number(sets.daily_goal) / 60));
+            
+            if (sets.appearance) setAppearance(sets.appearance);
+            setNotifications(sets.notifications !== '0');
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      load();
+      return () => { active = false; };
+    }, [])
+  );
+
+  const updateSetting = async (key: string, val: string) => {
+    await db.settings.set(key, val);
+  };
+
+  const handleIntensityChange = (val: number) => {
+    setIntensity(val);
+    updateSetting('intensity', String(val));
+  };
+
+  const handleGoalChange = (val: number) => {
+    setDailyGoal(val);
+    updateSetting('daily_goal', String(val * 60));
+  };
+
+  const formatGoal = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  };
+
+  return (
+    <Screen>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <View style={styles.header}>
+          <Text style={[theme.typography.screenTitle, { color: theme.colors.text }]}>Settings</Text>
+        </View>
+
+        <Card radius={20} padding={18}>
+          <View style={styles.profileRow}>
+            <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
+              <Text style={styles.avatarText}>MP</Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={[styles.profileName, { color: theme.colors.text }]}>Marco Polo</Text>
+              <Text style={[styles.profileSub, { color: theme.colors.muted }]}>Focus Pro · {streak}d streak</Text>
+            </View>
+            <Icon name="chevron" size={20} color={theme.colors.faint} />
+          </View>
+        </Card>
+
+        <View style={styles.section}>
+          <Text style={[styles.eyebrow, { color: theme.colors.faint }]}>FOCUS</Text>
+          <Card radius={20} padding={0} style={{ overflow: 'hidden' }}>
+            <View style={styles.listRow}>
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+                <Icon name="shield" size={18} color={theme.colors.text} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Strict Mode</Text>
+                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Can't stop early</Text>
+              </View>
+              <Switch value={strictMode} onValueChange={(v) => { setStrictMode(v); updateSetting('strict_mode', v ? '1' : '0'); }} />
+            </View>
+            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+                <Icon name="coffee" size={18} color={theme.colors.text} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Break Reminders</Text>
+                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Every 50 minutes</Text>
+              </View>
+              <Switch value={breakReminders} onValueChange={(v) => { setBreakReminders(v); updateSetting('break_reminders', v ? '1' : '0'); }} />
+            </View>
+            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+                <Icon name="zap" size={18} color={theme.colors.text} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Auto-Pilot</Text>
+                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Smart scheduling</Text>
+              </View>
+              <Switch value={autoPilot} onValueChange={(v) => { setAutoPilot(v); updateSetting('auto_pilot', v ? '1' : '0'); }} />
+            </View>
+          </Card>
+        </View>
+
+        <Card radius={20} padding={20}>
+          <View style={styles.sliderRowTop}>
+            <Text style={[styles.sliderLabel, { color: theme.colors.text }]}>Block intensity</Text>
+            <Text style={[styles.sliderValue, { color: theme.colors.accent, fontVariant: ['tabular-nums'] }]}>{intensity}%</Text>
+          </View>
+          <Slider value={intensity} min={0} max={100} step={1} onValueChange={handleIntensityChange} accentColor={theme.colors.accent} />
+          
+          <View style={[styles.sliderDivider, { backgroundColor: theme.colors.border }]} />
+          
+          <View style={styles.sliderRowTop}>
+            <Text style={[styles.sliderLabel, { color: theme.colors.text }]}>Daily goal</Text>
+            <Text style={[styles.sliderValue, { color: theme.colors.accent, fontVariant: ['tabular-nums'] }]}>{formatGoal(dailyGoal)}</Text>
+          </View>
+          <Slider value={dailyGoal} min={30} max={480} step={15} onValueChange={handleGoalChange} accentColor={theme.colors.accent} />
+        </Card>
+
+        <View style={styles.section}>
+          <Text style={[styles.eyebrow, { color: theme.colors.faint }]}>APP</Text>
+          <Card radius={20} padding={0} style={{ overflow: 'hidden' }}>
+            <View style={styles.listRow}>
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+                <Icon name="moon" size={18} color={theme.colors.text} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Appearance</Text>
+              </View>
+              <View style={{ width: 140 }}>
+                <SegmentedControl
+                  options={[{ label: 'Dark', value: 'dark' }, { label: 'Light', value: 'light' }]}
+                  value={appearance}
+                  onChange={(v) => { setAppearance(v); updateSetting('appearance', v); }}
+                />
+              </View>
+            </View>
+            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
+              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+                <Icon name="bell" size={18} color={theme.colors.text} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Notifications</Text>
+                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Session alerts & summaries</Text>
+              </View>
+              <Switch value={notifications} onValueChange={(v) => { setNotifications(v); updateSetting('notifications', v ? '1' : '0'); }} />
+            </View>
+          </Card>
+        </View>
+
+        <Card radius={20} padding={0} style={{ overflow: 'hidden' }}>
+          <Pressable style={styles.listRow} onPress={() => navigation.navigate('ManageTags')}>
+            <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+              <Icon name="grid" size={18} color={theme.colors.text} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>My Bricks</Text>
+            </View>
+            <Icon name="chevron" size={20} color={theme.colors.faint} />
+          </Pressable>
+          <Pressable style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
+            <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+              <Icon name="calendar" size={18} color={theme.colors.text} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Schedule</Text>
+            </View>
+            <Text style={[styles.navValue, { color: theme.colors.muted }]}>3 active</Text>
+            <Icon name="chevron" size={20} color={theme.colors.faint} />
+          </Pressable>
+          <Pressable style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]} onPress={() => navigation.navigate('ManageBlockedApps')}>
+            <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+              <Icon name="smartphone" size={18} color={theme.colors.text} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Blocked apps</Text>
+            </View>
+            <Text style={[styles.navValue, { color: theme.colors.muted }]}>{blockedAppsCount} apps</Text>
+            <Icon name="chevron" size={20} color={theme.colors.faint} />
+          </Pressable>
+          <Pressable style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]} onPress={() => navigation.navigate('EmergencyHistory')}>
+            <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+              <Icon name="clock" size={18} color={theme.colors.text} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>History</Text>
+            </View>
+            <Icon name="chevron" size={20} color={theme.colors.faint} />
+          </Pressable>
+          <Pressable style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]} onPress={() => navigation.navigate('About')}>
+            <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+              <Icon name="info" size={18} color={theme.colors.text} />
+            </View>
+            <View style={styles.rowText}>
+              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>About Bricks</Text>
+            </View>
+            <Icon name="chevron" size={20} color={theme.colors.faint} />
+          </Pressable>
+        </Card>
+
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v2.4.1</Text>
+        </View>
+      </ScrollView>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: {
+    paddingBottom: 40,
+    gap: 20,
+  },
+  header: {
+    marginBottom: 4,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  avatar: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: '#fff',
+    fontFamily: 'Manrope',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  profileInfo: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  profileName: {
+    fontFamily: 'Manrope',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  profileSub: {
+    fontFamily: 'Manrope',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  section: {
+    gap: 10,
+  },
+  eyebrow: {
+    fontFamily: 'Manrope',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.14 * 11,
+    marginLeft: 16,
+  },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowText: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    fontFamily: 'Manrope',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  rowSub: {
+    fontFamily: 'Manrope',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  sliderRowTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sliderLabel: {
+    fontFamily: 'Manrope',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  sliderValue: {
+    fontFamily: 'Manrope',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  sliderDivider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 20,
+  },
+  navValue: {
+    fontFamily: 'Manrope',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  footer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  footerText: {
+    fontFamily: 'Manrope',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+});

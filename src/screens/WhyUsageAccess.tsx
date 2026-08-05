@@ -1,0 +1,86 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Screen } from '../components/Screen';
+import { OnboardingHeader } from '../components/OnboardingHeader';
+import { Icon } from '../components/Icon';
+import { useTheme } from '../theme/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { OnboardingStackParamList } from '../navigation/types';
+
+export function WhyUsageAccess() {
+  const { colors } = useTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
+  const obTint = colors.accent + '24';
+
+  const onNext = () => {
+    navigation.navigate('GrantUsageAccess');
+  };
+
+  return (
+    <Screen style={styles.container}>
+      <OnboardingHeader />
+      
+      <View style={styles.content}>
+        <View style={[styles.iconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>
+          <Icon name="shield" size={44} color={colors.accent} />
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>Why do you need this?</Text>
+        <Text style={[styles.body, { color: colors.muted }]}>
+          Bricks uses Usage Access to detect which app you open so it can redirect blocked apps the moment they launch. Your usage data never leaves this phone.
+        </Text>
+      </View>
+      
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: colors.accent }]}
+        onPress={onNext}
+      >
+        <Text style={styles.buttonText}>Continue</Text>
+      </TouchableOpacity>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 30,
+    paddingTop: 32,
+    paddingBottom: 34,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  iconBox: {
+    width: 104,
+    height: 104,
+    borderRadius: 30,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 34,
+  },
+  title: {
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -1.19,
+    lineHeight: 36,
+  },
+  body: {
+    fontSize: 16,
+    fontWeight: '500',
+    lineHeight: 26,
+    marginTop: 16,
+  },
+  button: {
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+});
