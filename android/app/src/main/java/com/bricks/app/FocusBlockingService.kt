@@ -3,7 +3,9 @@ package com.bricks.app
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
@@ -12,6 +14,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 class FocusBlockingService : Service() {
+    @Volatile
     private var isRunning = false
     private var pollingThread: Thread? = null
 
@@ -19,9 +22,10 @@ class FocusBlockingService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         StateStore.init(applicationContext)
-        val activeState = StateStore.load()
-        if (activeState != null) {
-            startForegroundService()
+        // Post the notification before any early return: Android kills a service that was
+        // started with startForegroundService() and does not call startForeground() in time.
+        startForegroundNotification()
+        if (StateStore.load() != null) {
             startPolling()
         } else {
             stopSelf()
@@ -29,25 +33,43 @@ class FocusBlockingService : Service() {
         return START_STICKY
     }
 
-    private fun startForegroundService() {
+    private fun startForegroundNotification() {
         val channelId = "focus_blocking"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
                 "Focus Blocking",
                 NotificationManager.IMPORTANCE_LOW
-            )
+            ).apply {
+                setShowBadge(false)
+                description = "Shown while a focus session is running."
+            }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
         }
 
-        val activeState = StateStore.load()
-        val numApps = activeState?.blockedPackages?.size ?: 0
+        val numApps = StateStore.load()?.blockedPackages?.size ?: 0
+
+        val contentIntent = packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(
+                this,
+                0,
+                it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        var iconRes = resources.getIdentifier("ic_launcher", "mipmap", packageName)
+        if (iconRes == 0) iconRes = android.R.drawable.ic_lock_lock
 
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Focus session active")
-            .setContentText("Focus session active · $numApps apps blocked")
-            .setSmallIcon(resources.getIdentifier("ic_launcher", "mipmap", packageName))
+            .setContentText("$numApps apps blocked · tap your Brick to end")
+            .setSmallIcon(iconRes)
+            .setOngoing(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .apply { contentIntent?.let { setContentIntent(it) } }
             .build()
 
         startForeground(1, notification)
@@ -59,59 +81,31 @@ class FocusBlockingService : Service() {
 
         pollingThread = Thread {
             val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            var lastQueryTime = System.currentTimeMillis() - 10_000
             while (isRunning) {
                 try {
-                    val activeState = StateStore.load()
-                    if (activeState == null) {
+                    if (StateStore.load() == null) {
                         isRunning = false
                         stopSelf()
                         break
                     }
 
                     val now = System.currentTimeMillis()
-                    val stats = usageStatsManager.queryUsageStats(
-                        UsageStatsManager.INTERVAL_BEST,
-                        now - 5000,
-                        now
-                    )
+                    // Event stream rather than aggregated stats: queryUsageStats sorted by
+                    // lastTimeUsed reports whichever app was touched most recently in the
+                    // window, which lags badly and misreports on fast app switches.
+                    val fgPackage = latestForegroundPackage(usageStatsManager, lastQueryTime - 1000, now)
+                    lastQueryTime = now
 
-                    if (stats != null && stats.isNotEmpty()) {
-                        val recentStat = stats.maxByOrNull { it.lastTimeUsed }
-                        val fgPackage = recentStat?.packageName
-
-                        if (fgPackage != null && 
-                            fgPackage in activeState.blockedPackages &&
-                            fgPackage != packageName &&
-                            fgPackage != "com.android.systemui" &&
-                            fgPackage != getLauncherPackageName()
-                        ) {
-                            if (!BlockedActivity.isShowing) {
-                                val pm = packageManager
-                                val label = try {
-                                    val ai = pm.getApplicationInfo(fgPackage, 0)
-                                    pm.getApplicationLabel(ai).toString()
-                                } catch (e: Exception) {
-                                    fgPackage
-                                }
-
-                                val ts = System.currentTimeMillis()
-                                StateStore.recordAttempt(fgPackage, label, ts)
-                                val attempt = Attempt(activeState.sessionId, fgPackage, label, ts)
-                                BricksBlockingModule.emitAttempt(attempt)
-
-                                val intent = Intent(this, BlockedActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                                }
-                                startActivity(intent)
-                            }
-                        }
+                    if (fgPackage != null) {
+                        BlockGuard.handleForegroundPackage(this, fgPackage)
                     }
                 } catch (e: Exception) {
-                    // Ignore
+                    // Usage access can be revoked mid-session; keep polling rather than dying.
                 }
 
                 try {
-                    Thread.sleep(2000)
+                    Thread.sleep(1000)
                 } catch (e: InterruptedException) {
                     break
                 }
@@ -120,16 +114,27 @@ class FocusBlockingService : Service() {
         pollingThread?.start()
     }
 
-    private fun getLauncherPackageName(): String {
-        val intent = Intent(Intent.ACTION_MAIN)
-        intent.addCategory(Intent.CATEGORY_HOME)
-        val resolveInfo = packageManager.resolveActivity(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
-        return resolveInfo?.activityInfo?.packageName ?: ""
+    private fun latestForegroundPackage(manager: UsageStatsManager, start: Long, end: Long): String? {
+        val events = manager.queryEvents(start, end)
+        val event = UsageEvents.Event()
+        var latestPackage: String? = null
+        var latestTime = 0L
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val isResume = event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
+                event.eventType == UsageEvents.Event.ACTIVITY_RESUMED
+            if (isResume && event.timeStamp >= latestTime) {
+                latestTime = event.timeStamp
+                latestPackage = event.packageName
+            }
+        }
+        return latestPackage
     }
 
     override fun onDestroy() {
         isRunning = false
         pollingThread?.interrupt()
+        pollingThread = null
         super.onDestroy()
     }
 }

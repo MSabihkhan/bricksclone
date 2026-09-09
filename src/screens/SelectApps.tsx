@@ -64,7 +64,7 @@ export function SelectApps() {
       .map(a => ({
         packageName: a.packageName,
         label: a.label,
-        addedAt: Date.now()
+        addedAt: Math.floor(Date.now() / 1000)
       }));
     await db.blockedApps.replaceAll(toAdd);
     navigation.navigate('OnboardingDone');

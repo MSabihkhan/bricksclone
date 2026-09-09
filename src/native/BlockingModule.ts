@@ -42,6 +42,9 @@ const moduleImpl = raw
       getPendingBlockedAttempts: (): Promise<BlockedAttempt[]> => raw.getPendingBlockedAttempts(),
       getManufacturer: (): Promise<string> => raw.getManufacturer(),
       hasIgnoringBatteryOptimizations: (): Promise<boolean> => raw.hasIgnoringBatteryOptimizations(),
+      requestBatteryOptimizationExemption: (): Promise<void> => raw.requestBatteryOptimizationExemption(),
+      hasOverlayPermission: (): Promise<boolean> => raw.hasOverlayPermission(),
+      requestOverlayPermission: (): Promise<void> => raw.requestOverlayPermission(),
       openOemSettings: (oem: string, screen: string): Promise<void> => raw.openOemSettings(oem, screen),
       getInstalledApps: (): Promise<InstalledApp[]> => raw.getInstalledApps(),
     }
@@ -58,6 +61,9 @@ const moduleImpl = raw
       getPendingBlockedAttempts: stub,
       getManufacturer: stub,
       hasIgnoringBatteryOptimizations: stub,
+      requestBatteryOptimizationExemption: stub,
+      hasOverlayPermission: stub,
+      requestOverlayPermission: stub,
       openOemSettings: stub,
       getInstalledApps: stub,
     };

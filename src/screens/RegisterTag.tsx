@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Screen } from '../components/Screen';
 import { OnboardingHeader } from '../components/OnboardingHeader';
 import { Icon } from '../components/Icon';
@@ -11,6 +11,7 @@ import { nfcService, formatTagId } from '../services/nfc';
 import { LOCATIONS, validateBrickName, isTagIdInputValid } from '../utils/onboarding';
 import { registerBrick } from './registerTagModel';
 import { NfcTag } from '../services/nfc/types';
+import { describeError } from '../utils/describeError';
 
 type Mode = 'unsupported' | 'scanning' | 'detected' | 'naming' | 'manual';
 
@@ -51,6 +52,7 @@ export function RegisterTag() {
 
   useEffect(() => {
     let unmounted = false;
+    let unsubscribe: (() => void) | undefined;
     if (mode === 'scanning' && !disabled) {
       // Start animation
       Animated.loop(
@@ -69,29 +71,36 @@ export function RegisterTag() {
         ])
       ).start();
 
-      nfcService.beginListening(
-        (tag: NfcTag | null) => {
-          if (tag && !unmounted) {
-            setTagId(tag.id);
-            setMode('detected');
-          }
+      unsubscribe = nfcService.subscribe((tag: NfcTag | null) => {
+        if (tag && !unmounted) {
+          setTagId(tag.id);
+          setMode('detected');
         }
-      );
+      });
     } else {
-      nfcService.stopListening();
       pulseAnim.stopAnimation();
     }
-    
+
     return () => {
       unmounted = true;
-      nfcService.stopListening();
+      unsubscribe?.();
     };
   }, [mode, disabled, pulseAnim]);
 
+  const [registering, setRegistering] = useState(false);
+
   const onRegister = async () => {
-    if (!validateBrickName(name)) return;
-    await registerBrick(tagId, name, location);
-    navigation.navigate('SelectApps');
+    if (!validateBrickName(name) || registering) return;
+    setRegistering(true);
+    try {
+      await registerBrick(tagId, name, location);
+      navigation.navigate('SelectApps');
+    } catch (err) {
+      // A failed write here used to fail silently — this Brick was the only sign the user
+      // ever tapped Register at all, so surface whatever broke instead of doing nothing.
+      Alert.alert('Could not register this Brick', describeError(err));
+      setRegistering(false);
+    }
   };
 
   const obTint = colors.accent + '24';
@@ -205,60 +214,74 @@ export function RegisterTag() {
   }
 
   // naming
-  const canRegister = validateBrickName(name);
+  const canRegister = validateBrickName(name) && !registering;
   return (
     <Screen style={styles.container}>
-      <View style={styles.namingHeader}>
-        <Text style={[styles.namingStep, { color: colors.muted }]}>REGISTER BRICK / Step 1 of 1 · Name</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <View style={[styles.namingIconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>
-          <Icon name="radio" size={32} color={colors.accent} />
-        </View>
-        <Text style={[styles.namingTitle, { color: colors.text }]}>Name this Brick</Text>
-        <Text style={[styles.namingSub, { color: colors.muted }]}>
-          Where does it live? You'll tap it here to start focusing.
-        </Text>
-        
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-          placeholder="e.g. Desk"
-          placeholderTextColor={colors.muted}
-          value={name}
-          onChangeText={setName}
-        />
-        
-        <Text style={[styles.quickPickLabel, { color: colors.muted }]}>QUICK PICK</Text>
-        <View style={styles.grid}>
-          {LOCATIONS.map(loc => {
-            const selected = loc.key === location;
-            return (
-              <TouchableOpacity
-                key={loc.key}
-                style={[
-                  styles.gridItem,
-                  { backgroundColor: selected ? colors.accent : colors.card, borderColor: selected ? colors.accent : colors.border }
-                ]}
-                onPress={() => {
-                  setLocation(loc.key);
-                  if (!name) setName(loc.label);
-                }}
-              >
-                <Icon name={loc.icon} size={20} color={selected ? '#fff' : colors.text} />
-                <Text style={[styles.gridItemLabel, { color: selected ? '#fff' : colors.text }]}>{loc.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.accent, opacity: canRegister ? 1 : 0.5 }]}
-        disabled={!canRegister}
-        onPress={onRegister}
+      {/*
+        Without this, the open keyboard could leave the Register button stranded off-screen
+        or underneath it — on Android 15+ the OS-level edge-to-edge behavior doesn't always
+        resize the layout the way `windowSoftInputMode="adjustResize"` used to guarantee, so
+        this drives the resize from JS instead of relying on that.
+      */}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}
       >
-        <Text style={styles.buttonText}>Register</Text>
-      </TouchableOpacity>
+        <View style={styles.namingHeader}>
+          <Text style={[styles.namingStep, { color: colors.muted }]}>REGISTER BRICK / Step 1 of 1 · Name</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={[styles.namingIconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>
+            <Icon name="radio" size={32} color={colors.accent} />
+          </View>
+          <Text style={[styles.namingTitle, { color: colors.text }]}>Name this Brick</Text>
+          <Text style={[styles.namingSub, { color: colors.muted }]}>
+            Where does it live? You'll tap it here to start focusing.
+          </Text>
+
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+            placeholder="e.g. Desk"
+            placeholderTextColor={colors.muted}
+            value={name}
+            onChangeText={setName}
+            returnKeyType="done"
+            onSubmitEditing={onRegister}
+          />
+
+          <Text style={[styles.quickPickLabel, { color: colors.muted }]}>QUICK PICK</Text>
+          <View style={styles.grid}>
+            {LOCATIONS.map(loc => {
+              const selected = loc.key === location;
+              return (
+                <TouchableOpacity
+                  key={loc.key}
+                  style={[
+                    styles.gridItem,
+                    { backgroundColor: selected ? colors.accent : colors.card, borderColor: selected ? colors.accent : colors.border }
+                  ]}
+                  onPress={() => {
+                    setLocation(loc.key);
+                    if (!name) setName(loc.label);
+                  }}
+                >
+                  <Icon name={loc.icon} size={20} color={selected ? '#fff' : colors.text} />
+                  <Text style={[styles.gridItemLabel, { color: selected ? '#fff' : colors.text }]}>{loc.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.accent, opacity: canRegister ? 1 : 0.5 }]}
+          disabled={!canRegister}
+          onPress={onRegister}
+        >
+          <Text style={styles.buttonText}>{registering ? 'Registering…' : 'Register'}</Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }

@@ -2,6 +2,7 @@ import { create, type StoreApi } from 'zustand';
 import { db } from '../db';
 import type { Session } from '../db/types';
 import { blockingEngine } from '../services/blocking/blockingEngine';
+import { computeStreakDays } from '../services/stats/statsService';
 
 export interface FocusState {
   machine: 'idle' | 'active';
@@ -61,8 +62,9 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
       return acc + dur;
     }, 0);
     
-    const streakDays = sessions.length > 0 ? 1 : 0;
-    
+    const allSessions = await db.sessions.listSessions();
+    const streakDays = computeStreakDays(allSessions);
+
     set({ todayFocusSec, streakDays });
 
     if (state.state === 'active') {

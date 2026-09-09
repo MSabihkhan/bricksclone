@@ -18,18 +18,29 @@ async function startFocusSession(params: { tagId: string; apps: string[] }): Pro
     throw new Error('Invalid state transition');
   }
 
+  // Strict comes from the Brick that started the session, falling back to the global
+  // setting, so a "Wind Down" Brick is not locked down as hard as "Deep Work".
+  let strict = 1;
+  const tag = params.tagId ? await db.tags.getTagById(params.tagId) : undefined;
+  if (tag) {
+    strict = tag.strict;
+  } else {
+    const globalStrict = await db.settings.get('strict_mode');
+    strict = globalStrict === '0' ? 0 : 1;
+  }
+
   const startedAt = Math.floor(Date.now() / 1000);
   const sessionId = await db.sessions.startSession({
     tagId: params.tagId,
     startTime: startedAt,
-    strict: 1,
+    strict,
     apps: params.apps,
   });
 
   await BlockingModule.startBlocking({
     sessionId,
     blockedPackages: params.apps,
-    strict: true,
+    strict: strict === 1,
     startedAt,
   });
 

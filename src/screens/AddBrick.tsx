@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, Switch, ScrollView, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, Switch, ScrollView, BackHandler, Alert } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Icon } from '../components/Icon';
 import { useTheme } from '../theme/ThemeContext';
@@ -8,14 +8,14 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../navigation/types';
 import { nfcService, formatTagId, normalizeTagId } from '../services/nfc';
 import { db } from '../db';
-import { blockingEngine } from '../services/blocking/blockingEngine';
 import { useFocusStore } from '../state/useFocusStore';
 import {
   LOCATIONS, validateBrickName, MODE_PRESETS, BRICK_MODES, DURATIONS,
-  modeLabel, buildBrickSummary, CATEGORY_META, CATEGORY_PACKAGES
+  modeLabel, buildBrickSummary, CATEGORY_META
 } from '../utils/onboarding';
 import { NfcTag } from '../services/nfc/types';
 import { Tag } from '../db/types';
+import { describeError } from '../utils/describeError';
 
 type Step = 'scan' | 'detected' | 'name' | 'block' | 'done';
 
@@ -59,6 +59,7 @@ export function AddBrick() {
 
   useEffect(() => {
     let unmounted = false;
+    let unsubscribe: (() => void) | undefined;
     if (step === 'scan' && !disabled && !unsupported) {
       Animated.loop(
         Animated.sequence([
@@ -67,7 +68,7 @@ export function AddBrick() {
         ])
       ).start();
 
-      nfcService.beginListening(async (tag: NfcTag | null) => {
+      unsubscribe = nfcService.subscribe(async (tag: NfcTag | null) => {
         if (tag && !unmounted) {
           setTagId(tag.id);
           const existing = await db.tags.getTagById(normalizeTagId(tag.id));
@@ -82,12 +83,11 @@ export function AddBrick() {
         }
       });
     } else {
-      nfcService.stopListening();
       pulseAnim.stopAnimation();
     }
     return () => {
       unmounted = true;
-      nfcService.stopListening();
+      unsubscribe?.();
     };
   }, [step, disabled, unsupported, pulseAnim]);
 
@@ -104,32 +104,44 @@ export function AddBrick() {
     return () => sub.remove();
   }, [step, navigation]);
 
+  const [saving, setSaving] = useState(false);
+
   const saveBrick = async () => {
-    const id = normalizeTagId(tagId);
-    const loc = LOCATIONS.find(l => l.key === nbLocation);
-    const finalName = nbName.trim() || (loc ? loc.label : 'New Brick');
-    await db.tags.registerTag({
-      id,
-      name: finalName,
-      location: nbLocation,
-      mode: nbMode,
-      categories: nbCategories,
-      duration: nbDuration,
-      strict: nbStrict ? 1 : 0,
-      createdAt: Math.floor(Date.now() / 1000)
-    });
-    setNbName(finalName);
-    setStep('done');
+    if (saving) return;
+    setSaving(true);
+    try {
+      const id = normalizeTagId(tagId);
+      const loc = LOCATIONS.find(l => l.key === nbLocation);
+      const finalName = nbName.trim() || (loc ? loc.label : 'New Brick');
+      await db.tags.registerTag({
+        id,
+        name: finalName,
+        location: nbLocation,
+        mode: nbMode,
+        categories: nbCategories,
+        duration: nbDuration,
+        strict: nbStrict ? 1 : 0,
+        createdAt: Math.floor(Date.now() / 1000)
+      });
+      setNbName(finalName);
+      setStep('done');
+    } catch (err) {
+      Alert.alert('Could not save this Brick', describeError(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const startFocusingNow = async () => {
-    const apps = Object.entries(nbCategories)
-      .filter(([_, active]) => active)
-      .flatMap(([k]) => CATEGORY_PACKAGES[k] || []);
-    
-    await blockingEngine.startFocusSession({ tagId, apps });
-    await useFocusStore.getState().hydrate();
-    navigation.navigate('FocusLock');
+    try {
+      // Always block the apps the user actually picked. The old path expanded the Brick's
+      // categories into a hardcoded package list, which blocked apps that were not installed
+      // and missed the ones that were.
+      await useFocusStore.getState().startSession(normalizeTagId(tagId));
+      navigation.popToTop();
+    } catch (err) {
+      Alert.alert('Could not start the session', describeError(err));
+    }
   };
 
   const obTint = colors.accent + '24'; // ~14% tint approx
@@ -209,7 +221,7 @@ export function AddBrick() {
           <View style={styles.bottomGap}>
             <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent }]} onPress={async () => {
                await useFocusStore.getState().startSession(registeredTag.id);
-               navigation.replace('FocusLock');
+               navigation.popToTop();
             }}>
               <Text style={styles.btnPrimaryText}>Start session</Text>
             </TouchableOpacity>
@@ -367,8 +379,12 @@ export function AddBrick() {
           </View>
         </ScrollView>
         <View style={[styles.bottomPad, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
-          <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent }]} onPress={saveBrick}>
-            <Text style={styles.btnPrimaryText}>Create Brick</Text>
+          <TouchableOpacity
+            style={[styles.btnPrimary, { backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }]}
+            disabled={saving}
+            onPress={saveBrick}
+          >
+            <Text style={styles.btnPrimaryText}>{saving ? 'Saving…' : 'Create Brick'}</Text>
           </TouchableOpacity>
         </View>
       </Screen>

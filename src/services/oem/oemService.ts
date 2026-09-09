@@ -25,7 +25,29 @@ async function hasBatteryOptimizationExemption(): Promise<boolean> {
 
 async function openBatterySettings(oem: OemId): Promise<void> {
   try {
+    // Stock Android exposes a one-tap system dialog; the skinned OEMs bury it, so those
+    // still need their own settings screen.
+    if (oem === 'generic' || oem === 'google') {
+      await BlockingModule.requestBatteryOptimizationExemption();
+      return;
+    }
     await BlockingModule.openOemSettings(oem, 'battery');
+  } catch {
+    await Linking.openSettings();
+  }
+}
+
+async function hasOverlayPermission(): Promise<boolean> {
+  try {
+    return await BlockingModule.hasOverlayPermission();
+  } catch {
+    return false;
+  }
+}
+
+async function requestOverlayPermission(): Promise<void> {
+  try {
+    await BlockingModule.requestOverlayPermission();
   } catch {
     await Linking.openSettings();
   }
@@ -44,4 +66,6 @@ export const oemService = {
   hasBatteryOptimizationExemption,
   openBatterySettings,
   openAutostartSettings,
+  hasOverlayPermission,
+  requestOverlayPermission,
 };

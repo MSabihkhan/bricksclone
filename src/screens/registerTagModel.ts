@@ -12,6 +12,6 @@ export async function registerBrick(tagId: string, name: string, location: strin
     categories: defaultCategories(),
     duration: '50',
     strict: 1,
-    createdAt: Date.now()
+    createdAt: Math.floor(Date.now() / 1000)
   });
 }

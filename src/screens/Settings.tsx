@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen } from '../components/Screen';
@@ -8,15 +8,18 @@ import { Switch } from '../components/Switch';
 import { Slider } from '../components/Slider';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { Icon } from '../components/Icon';
-import { useTheme } from '../theme/ThemeContext';
+import { useTheme, useThemeControls } from '../theme/ThemeContext';
+import { ColorMode } from '../theme';
 import { SettingsStackParamList } from '../navigation/types';
 import { db } from '../db';
 import { getPeriodStats } from '../services/stats/statsService';
+import { initialsFor } from './homeHeaderModel';
 
 type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
 
 export function Settings() {
   const theme = useTheme();
+  const { mode: appearance, setMode: setAppearance } = useThemeControls();
   const navigation = useNavigation<NavProp>();
   
   const [streak, setStreak] = useState(0);
@@ -29,8 +32,9 @@ export function Settings() {
   const [intensity, setIntensity] = useState(50);
   const [dailyGoal, setDailyGoal] = useState(210);
   
-  const [appearance, setAppearance] = useState('dark');
   const [notifications, setNotifications] = useState(true);
+  const [userName, setUserName] = useState('');
+  const [editingName, setEditingName] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,8 +56,8 @@ export function Settings() {
             if (sets.intensity) setIntensity(Number(sets.intensity));
             if (sets.daily_goal) setDailyGoal(Math.floor(Number(sets.daily_goal) / 60));
             
-            if (sets.appearance) setAppearance(sets.appearance);
             setNotifications(sets.notifications !== '0');
+            setUserName(sets.user_name || '');
           }
         } catch (err) {
           console.error(err);
@@ -66,6 +70,11 @@ export function Settings() {
 
   const updateSetting = async (key: string, val: string) => {
     await db.settings.set(key, val);
+  };
+
+  const commitName = () => {
+    setEditingName(false);
+    updateSetting('user_name', userName.trim());
   };
 
   const handleIntensityChange = (val: number) => {
@@ -96,13 +105,33 @@ export function Settings() {
         <Card radius={20} padding={18}>
           <View style={styles.profileRow}>
             <View style={[styles.avatar, { backgroundColor: theme.colors.accent }]}>
-              <Text style={styles.avatarText}>MP</Text>
+              <Text style={styles.avatarText}>{initialsFor(userName)}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: theme.colors.text }]}>Marco Polo</Text>
-              <Text style={[styles.profileSub, { color: theme.colors.muted }]}>Focus Pro · {streak}d streak</Text>
+              {editingName ? (
+                <TextInput
+                  style={[styles.profileName, styles.profileNameInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={userName}
+                  onChangeText={setUserName}
+                  placeholder="Your name"
+                  placeholderTextColor={theme.colors.faint}
+                  autoFocus
+                  returnKeyType="done"
+                  onBlur={commitName}
+                  onSubmitEditing={commitName}
+                />
+              ) : (
+                <Pressable onPress={() => setEditingName(true)}>
+                  <Text style={[styles.profileName, { color: theme.colors.text }]}>
+                    {userName || 'Add your name'}
+                  </Text>
+                </Pressable>
+              )}
+              <Text style={[styles.profileSub, { color: theme.colors.muted }]}>{streak}d streak</Text>
             </View>
-            <Icon name="chevron" size={20} color={theme.colors.faint} />
+            <Pressable onPress={() => (editingName ? commitName() : setEditingName(true))} hitSlop={10}>
+              <Icon name={editingName ? 'check' : 'chevron'} size={20} color={theme.colors.faint} />
+            </Pressable>
           </View>
         </Card>
 
@@ -172,7 +201,7 @@ export function Settings() {
                 <SegmentedControl
                   options={[{ label: 'Dark', value: 'dark' }, { label: 'Light', value: 'light' }]}
                   value={appearance}
-                  onChange={(v) => { setAppearance(v); updateSetting('appearance', v); }}
+                  onChange={(v) => setAppearance(v as ColorMode)}
                 />
               </View>
             </View>
@@ -269,7 +298,6 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     color: '#fff',
-    fontFamily: 'Manrope',
     fontSize: 18,
     fontWeight: '800',
   },
@@ -277,13 +305,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  profileNameInput: { borderBottomWidth: 1, paddingVertical: 2, minWidth: 160 },
   profileName: {
-    fontFamily: 'Manrope',
     fontSize: 17,
     fontWeight: '800',
   },
   profileSub: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
@@ -292,7 +319,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   eyebrow: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.14 * 11,
@@ -316,12 +342,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rowLabel: {
-    fontFamily: 'Manrope',
     fontSize: 14,
     fontWeight: '700',
   },
   rowSub: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
@@ -333,12 +357,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sliderLabel: {
-    fontFamily: 'Manrope',
     fontSize: 14,
     fontWeight: '700',
   },
   sliderValue: {
-    fontFamily: 'Manrope',
     fontSize: 14,
     fontWeight: '800',
   },
@@ -348,7 +370,6 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   navValue: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '700',
   },
@@ -357,7 +378,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   footerText: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '600',
   },

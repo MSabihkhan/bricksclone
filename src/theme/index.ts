@@ -75,8 +75,6 @@ export const radius = {
   input: 16,
 };
 
-export const fontFamily = 'Manrope';
-
 export const typography = {
   display: { fontSize: 40, fontWeight: '800', letterSpacing: -1.6 } as const,
   statLarge: { fontSize: 42, fontWeight: '800', letterSpacing: -1.7 } as const,

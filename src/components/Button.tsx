@@ -91,7 +91,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   text: {
-    fontFamily: 'Manrope',
     fontSize: 15,
     fontWeight: '800',
   },

@@ -23,15 +23,20 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {status === 'new' ? (
-          <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
-        ) : (
-          <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
-        )}
-        <Stack.Screen 
-          name="ModalStack" 
-          component={ModalNavigator} 
+      {/*
+        Both stacks are always registered. Rendering only one of them made the
+        `reset({ routes: [{ name: 'MainTabs' }] })` at the end of onboarding target a
+        screen that did not exist, leaving the user stuck on the last onboarding step.
+      */}
+      <Stack.Navigator
+        initialRouteName={status === 'new' ? 'OnboardingStack' : 'MainTabs'}
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="OnboardingStack" component={OnboardingNavigator} />
+        <Stack.Screen name="MainTabs" component={MainTabsNavigator} />
+        <Stack.Screen
+          name="ModalStack"
+          component={ModalNavigator}
           options={{ presentation: 'transparentModal' }}
         />
       </Stack.Navigator>

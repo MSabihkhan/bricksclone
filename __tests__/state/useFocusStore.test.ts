@@ -7,6 +7,7 @@ jest.mock('../../src/db', () => ({
     sessions: {
       sessionsBetween: jest.fn().mockResolvedValue([]),
       getActiveSession: jest.fn().mockResolvedValue(null),
+      listSessions: jest.fn().mockResolvedValue([]),
     },
     blockedApps: {
       listBlockedApps: jest.fn().mockResolvedValue([{ packageName: 'com.test.app' }]),

@@ -16,6 +16,7 @@ export function BatteryOptimization() {
   
   const [oem, setOem] = useState<OemInfo | null>(null);
   const [exemption, setExemption] = useState(false);
+  const [overlay, setOverlay] = useState(true);
 
   useEffect(() => {
     async function load() {
@@ -24,12 +25,14 @@ export function BatteryOptimization() {
       
       const isExempt = await oemService.hasBatteryOptimizationExemption();
       setExemption(isExempt);
+      setOverlay(await oemService.hasOverlayPermission());
     }
     load();
-    
+
     const interval = setInterval(async () => {
       const isExempt = await oemService.hasBatteryOptimizationExemption();
       setExemption(isExempt);
+      setOverlay(await oemService.hasOverlayPermission());
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -69,6 +72,22 @@ export function BatteryOptimization() {
             >
               <Text style={[styles.outlineBtnText, { color: colors.text }]}>Open battery settings</Text>
             </TouchableOpacity>
+
+            {!overlay && (
+              <View>
+                <Text style={[styles.listHeader, { color: colors.text, marginTop: 24 }]}>Display over other apps:</Text>
+                <Text style={[styles.listItem, { color: colors.muted }]}>
+                  Lets the block screen appear on top of a distracting app.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.outlineBtn, { borderColor: colors.border }]}
+                  onPress={() => oemService.requestOverlayPermission()}
+                >
+                  <Text style={[styles.outlineBtnText, { color: colors.text }]}>Allow display over apps</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {showAutostart && (
               <View>

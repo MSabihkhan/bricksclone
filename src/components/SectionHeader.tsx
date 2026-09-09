@@ -27,13 +27,11 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   title: {
-    fontFamily: 'Manrope',
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: -0.02 * 16, // approximate -0.02em
   },
   rightText: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '700',
   },

@@ -246,7 +246,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    fontFamily: 'Manrope',
     fontSize: 13,
     fontWeight: '600',
     marginTop: 4,
@@ -256,7 +255,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   eyebrow: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.16 * 11,
@@ -275,7 +273,6 @@ const styles = StyleSheet.create({
     borderRadius: 99,
   },
   chipText: {
-    fontFamily: 'Manrope',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -291,12 +288,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statVal: {
-    fontFamily: 'Manrope',
     fontSize: 17,
     fontWeight: '800',
   },
   statCap: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '600',
     marginTop: 2,
@@ -319,12 +314,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ringVal: {
-    fontFamily: 'Manrope',
     fontSize: 15,
     fontWeight: '800',
   },
   ringLbl: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -337,12 +330,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deltaLbl: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '700',
   },
   cardTitle: {
-    fontFamily: 'Manrope',
     fontSize: 15,
     fontWeight: '800',
   },
@@ -367,12 +358,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   barVal: {
-    fontFamily: 'Manrope',
     fontSize: 9,
     fontWeight: '700',
   },
   barLbl: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -386,12 +375,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   compLabel: {
-    fontFamily: 'Manrope',
     fontSize: 14,
     fontWeight: '700',
   },
   compCount: {
-    fontFamily: 'Manrope',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -417,12 +404,10 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   cellVal: {
-    fontFamily: 'Manrope',
     fontSize: 22,
     fontWeight: '800',
   },
   cellLbl: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.14 * 11,
@@ -440,7 +425,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   appName: {
-    fontFamily: 'Manrope',
     fontSize: 13,
     fontWeight: '700',
     width: 74,
@@ -455,7 +439,6 @@ const styles = StyleSheet.create({
     borderRadius: 99,
   },
   appCount: {
-    fontFamily: 'Manrope',
     fontSize: 13,
     fontWeight: '800',
     width: 30,

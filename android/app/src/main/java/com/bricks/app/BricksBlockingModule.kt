@@ -32,6 +32,7 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
                 startedAt = startedAt.toLong()
             )
             StateStore.save(state)
+            BlockGuard.reset()
 
             val intent = Intent(reactContext, FocusBlockingService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -48,9 +49,12 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     @ReactMethod
     fun stopBlocking(promise: Promise) {
         try {
+            // Clear the state first: the polling loop reads it every second and shuts
+            // itself down once it is gone, so a race cannot resurrect the block screen.
+            StateStore.save(null)
+            BlockGuard.reset()
             val intent = Intent(reactContext, FocusBlockingService::class.java)
             reactContext.stopService(intent)
-            StateStore.save(null)
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject(e)
@@ -167,6 +171,54 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     @ReactMethod
     fun getManufacturer(promise: Promise) {
         promise.resolve(Build.MANUFACTURER)
+    }
+
+    @ReactMethod
+    fun hasOverlayPermission(promise: Promise) {
+        try {
+            promise.resolve(Settings.canDrawOverlays(reactContext))
+        } catch (e: Exception) {
+            promise.resolve(false)
+        }
+    }
+
+    /**
+     * "Display over other apps" is the second exemption (besides an enabled accessibility
+     * service) that lets the block screen launch from the background on Android 10+.
+     */
+    @ReactMethod
+    fun requestOverlayPermission(promise: Promise) {
+        try {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:" + reactContext.packageName)
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactContext.startActivity(intent)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject(e)
+        }
+    }
+
+    @ReactMethod
+    fun requestBatteryOptimizationExemption(promise: Promise) {
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = android.net.Uri.parse("package:" + reactContext.packageName)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactContext.startActivity(intent)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            try {
+                val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                reactContext.startActivity(fallback)
+                promise.resolve(null)
+            } catch (e2: Exception) {
+                promise.reject(e2)
+            }
+        }
     }
 
     @ReactMethod

@@ -6,7 +6,8 @@ import { HomeStackNavigator } from './HomeStackNavigator';
 import { SettingsStackNavigator } from './SettingsStackNavigator';
 import { Insights } from '../screens';
 import { Icon, IconName } from '../components/Icon';
-import { defaultTheme as theme } from '../theme';
+import { Theme } from '../theme';
+import { useTheme } from '../theme/ThemeContext';
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 
@@ -25,6 +26,8 @@ const getLabel = (routeName: string) => {
 };
 
 function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+  const theme = useTheme();
+  const styles = React.useMemo(() => makeStyles(theme), [theme]);
   const [width, setWidth] = useState(Dimensions.get('window').width);
   const anim = useRef(new Animated.Value(state.index)).current;
 
@@ -99,7 +102,7 @@ export function MainTabsNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: Theme) => StyleSheet.create({
   container: {
     height: 80,
     backgroundColor: theme.colors.card,
@@ -125,7 +128,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.accent,
   },
   label: {
-    fontFamily: 'Manrope',
     fontSize: 11,
     fontWeight: '700',
     marginTop: 5,

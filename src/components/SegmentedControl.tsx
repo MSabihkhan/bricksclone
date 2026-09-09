@@ -82,7 +82,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   label: {
-    fontFamily: 'Manrope',
     fontSize: 13,
   },
   labelActive: {

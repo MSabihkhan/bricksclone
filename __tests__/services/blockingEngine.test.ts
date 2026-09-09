@@ -11,6 +11,12 @@ jest.mock('../../src/db', () => ({
     },
     blockedAttempts: {
       recordAttempt: jest.fn(),
+    },
+    tags: {
+      getTagById: jest.fn().mockResolvedValue(undefined),
+    },
+    settings: {
+      get: jest.fn().mockResolvedValue(undefined),
     }
   }
 }));
@@ -168,6 +174,41 @@ describe('blockingEngine', () => {
       
       expect(addAttemptListener).toHaveBeenCalled();
       expect(res).toBe(unsub);
+    });
+  });
+
+  describe('strict resolution', () => {
+    it('takes strict from the Brick that started the session', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(7);
+      (db.tags.getTagById as jest.Mock).mockResolvedValue({ id: 'TAG1', strict: 0 });
+
+      await blockingEngine.startFocusSession({ tagId: 'TAG1', apps: ['com.x'] });
+
+      expect((db.sessions.startSession as jest.Mock).mock.calls[0][0].strict).toBe(0);
+      expect((BlockingModule.startBlocking as jest.Mock).mock.calls[0][0].strict).toBe(false);
+    });
+
+    it('falls back to the global setting when the tag is unknown', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(8);
+      (db.tags.getTagById as jest.Mock).mockResolvedValue(undefined);
+      (db.settings.get as jest.Mock).mockResolvedValue('0');
+
+      await blockingEngine.startFocusSession({ tagId: 'GHOST', apps: ['com.x'] });
+
+      expect((db.sessions.startSession as jest.Mock).mock.calls[0][0].strict).toBe(0);
+    });
+
+    it('defaults to strict when nothing is configured', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(9);
+      (db.tags.getTagById as jest.Mock).mockResolvedValue(undefined);
+      (db.settings.get as jest.Mock).mockResolvedValue(undefined);
+
+      await blockingEngine.startFocusSession({ tagId: 'GHOST', apps: ['com.x'] });
+
+      expect((db.sessions.startSession as jest.Mock).mock.calls[0][0].strict).toBe(1);
     });
   });
 });
