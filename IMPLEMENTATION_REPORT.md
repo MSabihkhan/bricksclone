@@ -29,14 +29,16 @@
 - TypeScript: pass (`npx tsc --noEmit`)
 - Jest: pass (23 suites, 147 tests)
 - Android debug build: pass (`:app:assembleDebug`)
-- APK signature verification: pass (APK Signature Scheme v2)
-- APK SHA-256: `DA4EDB73A39EF1874F8260EDF7CD08BF523DE5F2BDDAE661A2DF083C3E42D3AE`
+- Bundled standalone release build: pass (`:app:assembleRelease`, ARM64)
+- Embedded JavaScript bundle: verified (`assets/index.android.bundle`)
+- APK signature verification: pass (APK Signature Schemes v2 and v3)
+- Standalone APK SHA-256: `D2CAB6D2727204B952081FB185D001C2EFC1FC812B12396EE8BF1686C42BFAAA`
 
 ## APK
 
-`android/app/build/outputs/apk/debug/app-debug.apk`
+`android/app/build/outputs/apk/release/Bricks-1.0.0-standalone-arm64.apk`
 
-This is an installable debug-signed APK for testing. A Play-distribution release APK/AAB requires the owner's private upload keystore values in `android/keystore.properties`; no production secret was generated or committed.
+This is an installable, self-contained ARM64 APK for phone testing. Its JavaScript bundle is embedded, so it does not require Metro, USB, or a development computer. It is test-signed with the Android debug certificate. A Play-distribution release APK/AAB still requires the owner's private upload keystore values in `android/keystore.properties`; no production secret was generated or committed.
 
 ## External validation still required
 
