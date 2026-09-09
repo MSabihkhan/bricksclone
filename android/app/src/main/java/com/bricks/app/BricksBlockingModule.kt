@@ -19,7 +19,7 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
-    fun startBlocking(sessionId: Double, blockedPackages: ReadableArray, strict: Boolean, startedAt: Double, promise: Promise) {
+    fun startBlocking(sessionId: Double, blockedPackages: ReadableArray, strict: Boolean, startedAt: Double, plannedEndTime: Double?, promise: Promise) {
         try {
             val packages = mutableListOf<String>()
             for (i in 0 until blockedPackages.size()) {
@@ -29,7 +29,8 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
                 sessionId = sessionId.toLong(),
                 blockedPackages = packages,
                 strict = strict,
-                startedAt = startedAt.toLong()
+                startedAt = startedAt.toLong(),
+                plannedEndTime = plannedEndTime?.toLong()
             )
             StateStore.save(state)
             BlockGuard.reset()
@@ -42,6 +43,7 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
             }
             promise.resolve(null)
         } catch (e: Exception) {
+            StateStore.save(null)
             promise.reject(e)
         }
     }
@@ -78,7 +80,8 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
             state.blockedPackages.forEach { array.pushString(it) }
             map.putArray("blockedPackages", array)
             map.putBoolean("strict", state.strict)
-            map.putDouble("startedAt", state.startedAt.toDouble())
+                map.putDouble("startedAt", state.startedAt.toDouble())
+                if (state.plannedEndTime != null) map.putDouble("plannedEndTime", state.plannedEndTime.toDouble()) else map.putNull("plannedEndTime")
             promise.resolve(map)
         }
     }

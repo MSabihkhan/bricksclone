@@ -2,10 +2,13 @@ import { create, type StoreApi } from 'zustand';
 import { db } from '../db';
 import type { Session } from '../db/types';
 import { blockingEngine } from '../services/blocking/blockingEngine';
+import type { EnforcementHealth, SessionEndReason } from '../services/blocking/blockingEngine';
 import { computeStreakDays } from '../services/stats/statsService';
 
 export interface FocusState {
   machine: 'idle' | 'active';
+  starting: boolean;
+  enforcementHealth: EnforcementHealth;
   activeSession: Session | null;
   todayFocusSec: number;
   blockedToday: number;
@@ -14,7 +17,8 @@ export interface FocusState {
   timerTick: number;
   hydrate: () => Promise<void>;
   startSession: (tagId: string) => Promise<void>;
-  endSession: (via: 'nfc' | 'override') => Promise<void>;
+  endSession: (via: SessionEndReason) => Promise<void>;
+  refreshEnforcementHealth: () => Promise<void>;
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -35,6 +39,8 @@ function attachListener(activeSessionId: number, set: StoreApi<FocusState>['setS
 
 export const useFocusStore = create<FocusState>((set, _get) => ({
   machine: 'idle',
+  starting: false,
+  enforcementHealth: 'inactive',
   activeSession: null,
   todayFocusSec: 0,
   blockedToday: 0,
@@ -43,8 +49,8 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
   timerTick: 0,
 
   hydrate: async () => {
-    const { state, activeSession } = await blockingEngine.recoverActiveSession();
-    set({ machine: state.state, activeSession: activeSession || null });
+    const { state, activeSession, enforcementHealth } = await blockingEngine.recoverActiveSession();
+    set({ machine: state.state, activeSession: activeSession || null, enforcementHealth });
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -79,34 +85,57 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
   },
 
   startSession: async (tagId: string) => {
-    const apps = await db.blockedApps.listBlockedApps();
-    const appIds = apps.map((a) => a.packageName);
-    await blockingEngine.startFocusSession({ tagId, apps: appIds });
-    
-    const session = await db.sessions.getActiveSession();
-    
-    if (session) {
-      attachListener(session.id, set);
+    if (_get().machine === 'active' || _get().starting) {
+      throw new Error('A focus session is already active or starting');
     }
-    
-    set({ machine: 'active', activeSession: session || null, liveBlocked: 0 });
-    
-    if (intervalId) clearInterval(intervalId);
-    intervalId = setInterval(() => {
-      set((s) => ({ timerTick: s.timerTick + 1, todayFocusSec: s.todayFocusSec + 1 }));
-    }, 1000);
+    set({ starting: true });
+    try {
+      const apps = await db.blockedApps.listBlockedApps();
+      const appIds = apps.map((a) => a.packageName);
+      await blockingEngine.startFocusSession({ tagId, apps: appIds });
+
+      const session = await db.sessions.getActiveSession();
+
+      if (session) {
+        attachListener(session.id, set);
+      }
+
+      const enforcementHealth = await blockingEngine.checkEnforcementHealth();
+      set({ machine: 'active', activeSession: session || null, liveBlocked: 0, enforcementHealth });
+
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(() => {
+        set((s) => ({ timerTick: s.timerTick + 1, todayFocusSec: s.todayFocusSec + 1 }));
+      }, 1000);
+    } catch (error) {
+      set({ enforcementHealth: 'inactive' });
+      throw error;
+    } finally {
+      set({ starting: false });
+    }
   },
 
-  endSession: async (via: 'nfc' | 'override') => {
+  endSession: async (via: SessionEndReason) => {
     if (detachAttemptListener) {
       detachAttemptListener();
       detachAttemptListener = null;
     }
-    await blockingEngine.endFocusSession(via);
-    set({ machine: 'idle', activeSession: null });
+    try {
+      await blockingEngine.endFocusSession(via);
+    } catch (error) {
+      set({ enforcementHealth: 'degraded' });
+      throw error;
+    }
+    set({ machine: 'idle', activeSession: null, enforcementHealth: 'inactive' });
     if (intervalId) {
       clearInterval(intervalId);
       intervalId = null;
     }
-  }
+  },
+
+  refreshEnforcementHealth: async () => {
+    if (_get().machine !== 'active') return;
+    const enforcementHealth = await blockingEngine.checkEnforcementHealth();
+    set({ enforcementHealth });
+  },
 }));

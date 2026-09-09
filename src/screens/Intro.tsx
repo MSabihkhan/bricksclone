@@ -6,8 +6,7 @@ import { Icon } from '../components/Icon';
 import { useTheme } from '../theme/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { OnboardingStackParamList, RootStackParamList } from '../navigation/types';
-import { completeOnboarding } from '../state/onboarding';
+import { OnboardingStackParamList } from '../navigation/types';
 
 const STEPS = [
   { icon: 'shield', title: 'Block the noise', text: 'Lock away distracting apps in one tap and reclaim hours of your day.' },
@@ -18,14 +17,7 @@ const STEPS = [
 export function Intro() {
   const { colors } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
-  const rootNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [step, setStep] = useState(0);
-
-  const onSkip = async () => {
-    await completeOnboarding();
-    rootNavigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
-  };
-
 
   const onNext = () => {
     if (step < STEPS.length - 1) {
@@ -40,7 +32,7 @@ export function Intro() {
 
   return (
     <Screen style={styles.container}>
-      <OnboardingHeader onSkip={onSkip} />
+      <OnboardingHeader />
       
       <View style={styles.content}>
         <View style={[styles.iconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>

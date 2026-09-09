@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, KeyboardAvoidingView, Platform, Alert, AppState } from 'react-native';
 import { Screen } from '../components/Screen';
 import { OnboardingHeader } from '../components/OnboardingHeader';
 import { Icon } from '../components/Icon';
@@ -48,6 +48,17 @@ export function RegisterTag() {
     return () => {
       unmounted = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active') return;
+      const supported = await nfcService.isSupported();
+      const enabled = supported ? await nfcService.isEnabled() : false;
+      setDisabled(supported && !enabled);
+      if (!supported) setMode('unsupported');
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -129,7 +140,6 @@ export function RegisterTag() {
           onPress={() => {
             if (disabled) {
               nfcService.openSettings();
-              setDisabled(false); // Assume they will enable it and come back
             } else {
               setMode('manual');
             }

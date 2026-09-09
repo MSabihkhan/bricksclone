@@ -13,10 +13,14 @@ export function About() {
     Alert.alert('Privacy & Data', 'All your focus sessions, settings, and blocked app data are stored locally on your device. We do not track or upload any personal information.');
   };
 
+  const handleLicenses = () => {
+    Alert.alert('Open-source licenses', 'Bricks uses React Native, React Navigation, Zustand, SQLite, React Native NFC Manager, and React Native SVG. Dependency license texts are distributed with their packages.');
+  };
+
   return (
     <Screen style={{ paddingHorizontal: 0 }}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Icon name="back" size={20} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>About</Text>
@@ -48,34 +52,12 @@ export function About() {
           </TouchableOpacity>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           
-          <TouchableOpacity style={styles.row} onPress={() => {}}>
+          <TouchableOpacity style={styles.row} onPress={handleLicenses}>
             <View style={[styles.iconBox, { backgroundColor: colors.card2 }]}>
               <Icon name="info" size={18} color={colors.text} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.rowLabel, { color: colors.text }]}>Licenses</Text>
-            </View>
-            <Icon name="chevron" size={20} color={colors.faint} />
-          </TouchableOpacity>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          
-          <TouchableOpacity style={styles.row} onPress={() => {}}>
-            <View style={[styles.iconBox, { backgroundColor: colors.card2 }]}>
-              <Icon name="info" size={18} color={colors.text} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Contact / Support</Text>
-            </View>
-            <Icon name="chevron" size={20} color={colors.faint} />
-          </TouchableOpacity>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          
-          <TouchableOpacity style={styles.row} onPress={() => {}}>
-            <View style={[styles.iconBox, { backgroundColor: colors.card2 }]}>
-              <Icon name="info" size={18} color={colors.text} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Rate Bricks</Text>
             </View>
             <Icon name="chevron" size={20} color={colors.faint} />
           </TouchableOpacity>

@@ -88,7 +88,7 @@ export function ManageBlockedApps() {
     return (
       <Screen style={{ paddingHorizontal: 0 }}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setPickerMode(false)} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close app picker" onPress={() => setPickerMode(false)} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Icon name="back" size={20} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Select Apps</Text>
@@ -143,7 +143,7 @@ export function ManageBlockedApps() {
             <Text style={[styles.countText, { color: colors.text }]}>{blocked.length} apps</Text>
           </View>
         </View>
-        <TouchableOpacity style={[styles.plusCircle, { backgroundColor: colors.accent }]} onPress={enterPicker}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add blocked apps" style={[styles.plusCircle, { backgroundColor: colors.accent }]} onPress={enterPicker}>
           <Icon name="plus" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -168,7 +168,7 @@ export function ManageBlockedApps() {
                   <Text style={[styles.viewLabel, { color: colors.text }]} numberOfLines={1}>{b.label}</Text>
                   <Text style={[styles.viewPkg, { color: colors.faint }]} numberOfLines={1}>{b.packageName}</Text>
                 </View>
-                <TouchableOpacity onPress={() => removeApp(b.packageName)} style={{ padding: 4 }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Remove ${b.label}`} onPress={() => removeApp(b.packageName)} style={{ padding: 4 }}>
                   <Icon name="x" size={24} color={colors.muted} />
                 </TouchableOpacity>
               </View>

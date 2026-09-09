@@ -1,4 +1,5 @@
 import { db } from '../../db';
+import type { Session } from '../../db/types';
 
 export type Period = 'day' | 'week' | 'month';
 
@@ -61,10 +62,17 @@ export function periodRange(period: Period): { start: number; end: number } {
   return { start, end };
 }
 
-export function computeStreakDays(allSessions: Array<{ startTime: number }>): number {
+export function isCompletedSession(session: Pick<Session, 'endedVia' | 'durationSec'>): boolean {
+  return (session.endedVia === 'nfc' || session.endedVia === 'timer') && (session.durationSec ?? 0) > 0;
+}
+
+export function computeStreakDays(allSessions: Array<Pick<Session, 'startTime' | 'endedVia' | 'durationSec'>>): number {
   const daysSet = new Set<string>();
+  const brokenDays = new Set<string>();
   for (const s of allSessions) {
-    daysSet.add(dayKey(new Date(s.startTime * 1000)));
+    const key = dayKey(new Date(s.startTime * 1000));
+    if (s.endedVia === 'override') brokenDays.add(key);
+    if (isCompletedSession(s)) daysSet.add(key);
   }
   
   let streakDays = 0;
@@ -75,11 +83,12 @@ export function computeStreakDays(allSessions: Array<{ startTime: number }>): nu
   const yesterdayStr = dayKey(yesterday);
   
   let checkDate = new Date();
-  if (!daysSet.has(todayStr) && daysSet.has(yesterdayStr)) {
+  if (brokenDays.has(todayStr)) return 0;
+  if (!daysSet.has(todayStr) && daysSet.has(yesterdayStr) && !brokenDays.has(yesterdayStr)) {
     checkDate = yesterday;
   }
   
-  while (daysSet.has(dayKey(checkDate))) {
+  while (daysSet.has(dayKey(checkDate)) && !brokenDays.has(dayKey(checkDate))) {
     streakDays++;
     checkDate = new Date(checkDate.getTime() - 86400000);
   }
@@ -269,10 +278,9 @@ export async function getPeriodComparison(period: Period): Promise<{ focusSec: n
     prevFocusSec += s.durationSec ?? ((s.endTime || prevEnd) - s.startTime);
   }
   
-  let deltaPct = 100;
-  if (prevFocusSec > 0) {
-    deltaPct = Math.round(((focusSec - prevFocusSec) / prevFocusSec) * 100);
-  }
+  const deltaPct = prevFocusSec > 0
+    ? Math.round(((focusSec - prevFocusSec) / prevFocusSec) * 100)
+    : focusSec > 0 ? 100 : 0;
   
   return { focusSec, prevFocusSec, deltaPct };
 }
@@ -300,7 +308,7 @@ export async function getCompletionByMode(period: Period): Promise<Array<{ mode:
     }
     
     modes[mode].total++;
-    const isCompleted = s.endedVia !== null && s.durationSec != null && s.durationSec > 0;
+    const isCompleted = isCompletedSession(s);
     if (isCompleted) {
       modes[mode].completed++;
     }
@@ -361,7 +369,7 @@ export async function getAvgSessionSec(period: Period): Promise<number> {
   let totalSec = 0;
   let count = 0;
   for (const s of sessions) {
-    if (s.endedVia !== null) {
+    if (isCompletedSession(s)) {
       totalSec += s.durationSec ?? (s.endTime ? s.endTime - s.startTime : 0);
       count++;
     }

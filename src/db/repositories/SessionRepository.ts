@@ -11,6 +11,7 @@ export class SessionRepository {
       startTime: Number(row.start_time),
       endTime: row.end_time ? Number(row.end_time) : null,
       durationSec: row.duration_sec ? Number(row.duration_sec) : null,
+      plannedEndTime: row.planned_end_time ? Number(row.planned_end_time) : null,
       endedVia: row.ended_via ? String(row.ended_via) : null,
       strict: Number(row.strict),
       apps: JSON.parse(String(row.apps || '[]')),
@@ -19,15 +20,15 @@ export class SessionRepository {
 
   async startSession(input: Omit<Session, 'id' | 'endTime' | 'durationSec' | 'endedVia'>): Promise<number> {
     const result = await this.driver.execute(
-      `INSERT INTO sessions (tag_id, start_time, strict, apps) VALUES (?, ?, ?, ?)`,
-      [input.tagId, input.startTime, input.strict, JSON.stringify(input.apps)]
+      `INSERT INTO sessions (tag_id, start_time, planned_end_time, strict, apps) VALUES (?, ?, ?, ?, ?)`,
+      [input.tagId, input.startTime, input.plannedEndTime ?? null, input.strict, JSON.stringify(input.apps)]
     );
     if (!result.insertId) throw new Error('Failed to insert session');
     return result.insertId;
   }
 
-  async endSession(id: number, input: { endedVia: string; durationSec: number }): Promise<void> {
-    const endTime = Math.floor(Date.now() / 1000);
+  async endSession(id: number, input: { endedVia: string; durationSec: number; endTime?: number }): Promise<void> {
+    const endTime = input.endTime ?? Math.floor(Date.now() / 1000);
     await this.driver.execute(
       `UPDATE sessions SET end_time = ?, duration_sec = ?, ended_via = ? WHERE id = ?`,
       [endTime, input.durationSec, input.endedVia, id]

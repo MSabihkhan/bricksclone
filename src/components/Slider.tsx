@@ -9,9 +9,10 @@ export interface SliderProps {
   step?: number;
   onValueChange: (val: number) => void;
   accentColor: string;
+  accessibilityLabel?: string;
 }
 
-export function Slider({ value, min, max, step = 1, onValueChange, accentColor }: SliderProps) {
+export function Slider({ value, min, max, step = 1, onValueChange, accentColor, accessibilityLabel = 'Adjust value' }: SliderProps) {
   const theme = useTheme();
   const [trackWidth, setTrackWidth] = useState(0);
 
@@ -81,7 +82,18 @@ export function Slider({ value, min, max, step = 1, onValueChange, accentColor }
   });
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityValue={{ min, max, now: value }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={(event) => {
+        const delta = event.nativeEvent.actionName === 'increment' ? step : -step;
+        onValueChange(Math.max(min, Math.min(max, value + delta)));
+      }}
+    >
       <View
         style={[styles.track, { backgroundColor: theme.colors.track }]}
         onLayout={onTrackLayout}

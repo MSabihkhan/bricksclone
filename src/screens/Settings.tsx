@@ -26,13 +26,7 @@ export function Settings() {
   const [blockedAppsCount, setBlockedAppsCount] = useState(0);
 
   const [strictMode, setStrictMode] = useState(false);
-  const [breakReminders, setBreakReminders] = useState(false);
-  const [autoPilot, setAutoPilot] = useState(false);
-  
-  const [intensity, setIntensity] = useState(50);
   const [dailyGoal, setDailyGoal] = useState(210);
-  
-  const [notifications, setNotifications] = useState(true);
   const [userName, setUserName] = useState('');
   const [editingName, setEditingName] = useState(false);
 
@@ -50,13 +44,7 @@ export function Settings() {
             setBlockedAppsCount(apps.length);
             
             setStrictMode(sets.strict_mode === '1');
-            setBreakReminders(sets.break_reminders === '1');
-            setAutoPilot(sets.auto_pilot === '1');
-            
-            if (sets.intensity) setIntensity(Number(sets.intensity));
             if (sets.daily_goal) setDailyGoal(Math.floor(Number(sets.daily_goal) / 60));
-            
-            setNotifications(sets.notifications !== '0');
             setUserName(sets.user_name || '');
           }
         } catch (err) {
@@ -75,11 +63,6 @@ export function Settings() {
   const commitName = () => {
     setEditingName(false);
     updateSetting('user_name', userName.trim());
-  };
-
-  const handleIntensityChange = (val: number) => {
-    setIntensity(val);
-    updateSetting('intensity', String(val));
   };
 
   const handleGoalChange = (val: number) => {
@@ -129,7 +112,7 @@ export function Settings() {
               )}
               <Text style={[styles.profileSub, { color: theme.colors.muted }]}>{streak}d streak</Text>
             </View>
-            <Pressable onPress={() => (editingName ? commitName() : setEditingName(true))} hitSlop={10}>
+            <Pressable accessibilityRole="button" accessibilityLabel={editingName ? 'Save profile name' : 'Edit profile name'} onPress={() => (editingName ? commitName() : setEditingName(true))} hitSlop={10}>
               <Icon name={editingName ? 'check' : 'chevron'} size={20} color={theme.colors.faint} />
             </Pressable>
           </View>
@@ -143,48 +126,20 @@ export function Settings() {
                 <Icon name="shield" size={18} color={theme.colors.text} />
               </View>
               <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Strict Mode</Text>
-                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Can't stop early</Text>
+                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Default Strict Mode</Text>
+                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Applied to newly registered Bricks</Text>
               </View>
-              <Switch value={strictMode} onValueChange={(v) => { setStrictMode(v); updateSetting('strict_mode', v ? '1' : '0'); }} />
-            </View>
-            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
-              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
-                <Icon name="coffee" size={18} color={theme.colors.text} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Break Reminders</Text>
-                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Every 50 minutes</Text>
-              </View>
-              <Switch value={breakReminders} onValueChange={(v) => { setBreakReminders(v); updateSetting('break_reminders', v ? '1' : '0'); }} />
-            </View>
-            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
-              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
-                <Icon name="zap" size={18} color={theme.colors.text} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Auto-Pilot</Text>
-                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Smart scheduling</Text>
-              </View>
-              <Switch value={autoPilot} onValueChange={(v) => { setAutoPilot(v); updateSetting('auto_pilot', v ? '1' : '0'); }} />
+              <Switch accessibilityLabel="Default Strict Mode" value={strictMode} onValueChange={(v) => { setStrictMode(v); updateSetting('strict_mode', v ? '1' : '0'); }} />
             </View>
           </Card>
         </View>
 
         <Card radius={20} padding={20}>
           <View style={styles.sliderRowTop}>
-            <Text style={[styles.sliderLabel, { color: theme.colors.text }]}>Block intensity</Text>
-            <Text style={[styles.sliderValue, { color: theme.colors.accent, fontVariant: ['tabular-nums'] }]}>{intensity}%</Text>
-          </View>
-          <Slider value={intensity} min={0} max={100} step={1} onValueChange={handleIntensityChange} accentColor={theme.colors.accent} />
-          
-          <View style={[styles.sliderDivider, { backgroundColor: theme.colors.border }]} />
-          
-          <View style={styles.sliderRowTop}>
             <Text style={[styles.sliderLabel, { color: theme.colors.text }]}>Daily goal</Text>
             <Text style={[styles.sliderValue, { color: theme.colors.accent, fontVariant: ['tabular-nums'] }]}>{formatGoal(dailyGoal)}</Text>
           </View>
-          <Slider value={dailyGoal} min={30} max={480} step={15} onValueChange={handleGoalChange} accentColor={theme.colors.accent} />
+          <Slider accessibilityLabel="Daily focus goal" value={dailyGoal} min={30} max={480} step={15} onValueChange={handleGoalChange} accentColor={theme.colors.accent} />
         </Card>
 
         <View style={styles.section}>
@@ -205,16 +160,6 @@ export function Settings() {
                 />
               </View>
             </View>
-            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
-              <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
-                <Icon name="bell" size={18} color={theme.colors.text} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Notifications</Text>
-                <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Session alerts & summaries</Text>
-              </View>
-              <Switch value={notifications} onValueChange={(v) => { setNotifications(v); updateSetting('notifications', v ? '1' : '0'); }} />
-            </View>
           </Card>
         </View>
 
@@ -226,16 +171,6 @@ export function Settings() {
             <View style={styles.rowText}>
               <Text style={[styles.rowLabel, { color: theme.colors.text }]}>My Bricks</Text>
             </View>
-            <Icon name="chevron" size={20} color={theme.colors.faint} />
-          </Pressable>
-          <Pressable style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
-            <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
-              <Icon name="calendar" size={18} color={theme.colors.text} />
-            </View>
-            <View style={styles.rowText}>
-              <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Schedule</Text>
-            </View>
-            <Text style={[styles.navValue, { color: theme.colors.muted }]}>3 active</Text>
             <Icon name="chevron" size={20} color={theme.colors.faint} />
           </Pressable>
           <Pressable style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]} onPress={() => navigation.navigate('ManageBlockedApps')}>
@@ -269,7 +204,7 @@ export function Settings() {
         </Card>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v2.4.1</Text>
+          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v1.0.0</Text>
         </View>
       </ScrollView>
     </Screen>

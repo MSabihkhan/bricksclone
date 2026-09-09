@@ -53,14 +53,15 @@ export function ManageTags() {
   const saveCreate = async () => {
     if (!validateBrickName(name)) return;
     const finalName = name.trim() || LOCATIONS.find(l => l.key === location)?.label || 'New Brick';
+    const strictDefault = await db.settings.get('strict_mode');
     await db.tags.registerTag({
       id: tagId.trim(),
       name: finalName,
       location,
       mode: 'deep', // default
-      categories: { social: true, games: true, video: true, news: true, shopping: false, messaging: false },
+      categories: {},
       duration: '50',
-      strict: 1,
+      strict: strictDefault === '0' ? 0 : 1,
       createdAt: Math.floor(Date.now() / 1000)
     });
     setModalVisible(false);
@@ -164,7 +165,7 @@ export function ManageTags() {
     <Screen style={{ paddingHorizontal: 0 }}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Bricks</Text>
-        <TouchableOpacity style={[styles.plusCircle, { backgroundColor: colors.accent }]} onPress={openCreate}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add Brick" style={[styles.plusCircle, { backgroundColor: colors.accent }]} onPress={openCreate}>
           <Icon name="plus" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -181,7 +182,6 @@ export function ManageTags() {
         ) : (
           <View style={{ gap: 12 }}>
             {tags.map(t => {
-              const nApps = Object.values(t.categories).filter(Boolean).length;
               return (
                 <TouchableOpacity key={t.id} style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => openEdit(t)}>
                   <View style={[styles.rowIconBox, { backgroundColor: colors.card2 }]}>
@@ -189,7 +189,7 @@ export function ManageTags() {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowName, { color: colors.text }]}>{t.name}</Text>
-                    <Text style={[styles.rowMeta, { color: colors.muted }]}>{modeLabel(t.mode)} · {nApps} apps</Text>
+                    <Text style={[styles.rowMeta, { color: colors.muted }]}>{modeLabel(t.mode)} · Global blocked list</Text>
                   </View>
                   <Icon name="chevron" size={20} color={colors.faint} />
                 </TouchableOpacity>

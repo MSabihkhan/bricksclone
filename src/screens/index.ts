@@ -16,5 +16,4 @@ export * from './ManageTags';
 export * from './ManageBlockedApps';
 export * from './EmergencyHistory';
 export * from './About';
-export * from './Blocked';
 export * from './EmergencyOverride';

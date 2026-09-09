@@ -36,9 +36,9 @@ export function isTagIdInputValid(raw: string): boolean {
 }
 
 export const BRICK_MODES = [
-  { key: 'deep', label: 'Deep Work', desc: 'Blocks social, games, video & news' },
-  { key: 'wind', label: 'Wind Down', desc: 'Softer — social, video, shopping & chat' },
-  { key: 'custom', label: 'Custom', desc: 'Choose exactly what to block below' }
+  { key: 'deep', label: 'Deep Work', desc: 'High-commitment focus with your global blocked apps' },
+  { key: 'wind', label: 'Wind Down', desc: 'A gentler focus label for evening routines' },
+  { key: 'custom', label: 'Custom', desc: 'A reusable focus mode with your chosen duration' }
 ] as const;
 
 export const MODE_PRESETS: Record<string, Record<string, boolean>> = {
@@ -66,10 +66,12 @@ export function durationLabel(d: string): '25 min' | '50 min' | '90 min' | 'Unti
 
 export function buildBrickSummary(
   mode: string,
-  categories: Record<string, boolean>,
+  categoriesOrAppCount: Record<string, boolean> | number,
   duration: string
 ): Array<{ label: string; icon: 'target' | 'shield' | 'timer' }> {
-  const nApps = Object.values(categories).filter(Boolean).length;
+  const nApps = typeof categoriesOrAppCount === 'number'
+    ? categoriesOrAppCount
+    : Object.values(categoriesOrAppCount).filter(Boolean).length;
   return [
     { label: modeLabel(mode), icon: 'target' },
     { label: `${nApps} apps`, icon: 'shield' },

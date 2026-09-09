@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Animated, BackHandler, Alert } from 'react-native';
 import { Theme } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
 import { useFocusStore } from '../state/useFocusStore';
@@ -15,10 +15,11 @@ import { modeLabel } from '../utils/onboarding';
 export function FocusLock() {
   const theme = useTheme();
   const styles = React.useMemo(() => makeStyles(theme), [theme]);
-  const { timerTick, activeSession, liveBlocked, endSession } = useFocusStore();
+  const { timerTick, activeSession, liveBlocked, endSession, enforcementHealth, refreshEnforcementHealth } = useFocusStore();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const dotAnim = useRef(new Animated.Value(1)).current;
+  const autoEndStarted = useRef(false);
 
   const [plannedSec, setPlannedSec] = useState<number | null>(50 * 60);
   const [modeName, setModeName] = useState('Deep Work');
@@ -26,13 +27,16 @@ export function FocusLock() {
   useEffect(() => {
     let active = true;
     const fetchTag = async () => {
+      if (activeSession?.plannedEndTime) {
+        setPlannedSec(Math.max(1, activeSession.plannedEndTime - activeSession.startTime));
+      }
       if (activeSession?.tagId) {
         const tag = await db.tags.getTagById(activeSession.tagId);
         if (active && tag) {
           setModeName(modeLabel(tag.mode));
-          if (tag.duration === 'inf') {
+          if (!activeSession.plannedEndTime && tag.duration === 'inf') {
             setPlannedSec(null);
-          } else {
+          } else if (!activeSession.plannedEndTime) {
             setPlannedSec((Number(tag.duration) || 50) * 60);
           }
           return;
@@ -45,7 +49,7 @@ export function FocusLock() {
     };
     fetchTag();
     return () => { active = false; };
-  }, [activeSession?.tagId]);
+  }, [activeSession?.plannedEndTime, activeSession?.startTime, activeSession?.tagId]);
 
   useEffect(() => {
     Animated.loop(
@@ -71,13 +75,27 @@ export function FocusLock() {
     }
   }, [activeSession?.strict]);
 
+  useEffect(() => {
+    refreshEnforcementHealth().catch(() => {});
+    const id = setInterval(refreshEnforcementHealth, 5000);
+    return () => clearInterval(id);
+  }, [refreshEnforcementHealth]);
+
   // timerTick only drives the re-render; the value itself always comes from the wall clock
   // so the display survives the app being backgrounded, killed, or the store rehydrating.
-  void timerTick;
-  const elapsed = activeSession ? Math.max(0, Math.floor(Date.now() / 1000) - activeSession.startTime) : 0;
+  const elapsed = activeSession ? Math.max(0, Math.floor(Date.now() / 1000) - activeSession.startTime + timerTick * 0) : 0;
   const isInf = plannedSec === null;
   const progress = isInf ? 0 : Math.min(elapsed / (plannedSec || 1), 1);
   const remainingSec = isInf ? 0 : Math.max((plannedSec || 0) - elapsed, 0);
+
+  useEffect(() => {
+    if (isInf || remainingSec > 0 || !activeSession || autoEndStarted.current) return;
+    autoEndStarted.current = true;
+    endSession('timer').catch((error) => {
+      autoEndStarted.current = false;
+      Alert.alert('Could not finish the session', error instanceof Error ? error.message : String(error));
+    });
+  }, [activeSession, endSession, isInf, remainingSec]);
 
   const formatClock = (sec: number) => {
     const h = Math.floor(sec / 3600);
@@ -91,7 +109,9 @@ export function FocusLock() {
     if (activeSession?.strict === 1) {
       navigation.navigate('ModalStack', { screen: 'EmergencyOverride' });
     } else {
-      endSession('override');
+      endSession('override').catch((error) => {
+        Alert.alert('Could not finish the session', error instanceof Error ? error.message : String(error));
+      });
     }
   };
 
@@ -106,6 +126,13 @@ export function FocusLock() {
         <Icon name="lock" size={15} color={theme.colors.accent} />
         <Text style={styles.headerText}>FOCUS LOCKED</Text>
       </View>
+
+      {enforcementHealth === 'degraded' && (
+        <View style={styles.healthWarning} accessibilityRole="alert">
+          <Icon name="shield" size={16} color={theme.colors.text} />
+          <Text style={styles.healthWarningText}>Protection needs attention. Re-enable Usage Access or Accessibility.</Text>
+        </View>
+      )}
 
       <View style={styles.center}>
         <Animated.View style={[styles.pulseRing, { transform: [{ scale: rScale }], opacity: rOp }]} />
@@ -167,6 +194,17 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
     letterSpacing: 2.4,
     color: theme.colors.accent,
   },
+  healthWarning: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: theme.colors.accentSoft,
+    marginBottom: 18,
+  },
+  healthWarningText: { flex: 1, color: theme.colors.text, fontSize: 12, fontWeight: '600' },
   center: {
     position: 'relative',
     width: 230,

@@ -76,6 +76,9 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
             key={route.key}
             onPress={onPress}
             style={styles.tab}
+            accessibilityRole="tab"
+            accessibilityLabel={getLabel(route.name)}
+            accessibilityState={{ selected: isFocused }}
           >
             <Icon
               name={getIconName(route.name)}
@@ -94,7 +97,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
 
 export function MainTabsNavigator() {
   return (
-    <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={CustomTabBar} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="HomeTab" component={HomeStackNavigator} />
       <Tab.Screen name="Insights" component={Insights} />
       <Tab.Screen name="SettingsTab" component={SettingsStackNavigator} />

@@ -23,10 +23,13 @@ jest.mock('../../src/services/blocking/blockingEngine', () => ({
     recoverActiveSession: jest.fn().mockResolvedValue({
       state: { state: 'idle' },
       activeSession: null,
+      starting: false,
+      enforcementHealth: 'inactive',
     }),
     startFocusSession: jest.fn().mockResolvedValue({}),
     endFocusSession: jest.fn().mockResolvedValue({}),
     attachBlockedAttemptListener: jest.fn(),
+    checkEnforcementHealth: jest.fn().mockResolvedValue('active'),
   },
 }));
 
@@ -36,6 +39,8 @@ describe('useFocusStore', () => {
     jest.useFakeTimers();
     useFocusStore.setState({
       machine: 'idle',
+      starting: false,
+      enforcementHealth: 'inactive',
       activeSession: null,
       todayFocusSec: 0,
       blockedToday: 0,
@@ -53,6 +58,7 @@ describe('useFocusStore', () => {
     (blockingEngine.recoverActiveSession as jest.Mock).mockResolvedValueOnce({
       state: { state: 'active' },
       activeSession: { id: 1, tagId: 't1' },
+      enforcementHealth: 'active',
     });
 
     await useFocusStore.getState().hydrate();

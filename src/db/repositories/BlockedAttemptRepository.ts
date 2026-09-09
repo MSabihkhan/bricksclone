@@ -16,7 +16,7 @@ export class BlockedAttemptRepository {
 
   async recordAttempt(input: Omit<BlockedAttempt, 'id'>): Promise<void> {
     await this.driver.execute(
-      'INSERT INTO blocked_attempts (session_id, package_name, label, created_at) VALUES (?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO blocked_attempts (session_id, package_name, label, created_at) VALUES (?, ?, ?, ?)',
       [input.sessionId, input.packageName, input.label, input.createdAt]
     );
   }

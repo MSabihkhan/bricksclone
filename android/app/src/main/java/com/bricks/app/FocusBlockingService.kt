@@ -90,6 +90,15 @@ class FocusBlockingService : Service() {
                         break
                     }
 
+                    val activeState = StateStore.load()
+                    if (activeState?.plannedEndTime != null && System.currentTimeMillis() / 1000 >= activeState.plannedEndTime) {
+                        StateStore.save(null)
+                        BlockGuard.reset()
+                        isRunning = false
+                        stopSelf()
+                        break
+                    }
+
                     val now = System.currentTimeMillis()
                     // Event stream rather than aggregated stats: queryUsageStats sorted by
                     // lastTimeUsed reports whichever app was touched most recently in the

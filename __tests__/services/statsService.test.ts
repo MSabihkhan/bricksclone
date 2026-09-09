@@ -1,4 +1,4 @@
-import { getPeriodStats, getFocusBars, getTopBlocked, startOfDay, endOfDay, dayKey, shiftDays, periodRange, getTodayStats, getPeriodComparison, getCompletionByMode, getBestDay, getAvgSessionSec } from '../../src/services/stats/statsService';
+import { computeStreakDays, getPeriodStats, getFocusBars, getTopBlocked, startOfDay, endOfDay, dayKey, shiftDays, periodRange, getTodayStats, getPeriodComparison, getCompletionByMode, getBestDay, getAvgSessionSec } from '../../src/services/stats/statsService';
 import { db } from '../../src/db';
 
 const mockQuery = jest.fn();
@@ -75,8 +75,8 @@ describe('statsService', () => {
       const todayUnix = Math.floor(today.getTime() / 1000);
       const yesterdayUnix = Math.floor(yesterday.getTime() / 1000);
       (db.sessions.listSessions as jest.Mock).mockResolvedValue([
-        { id: 1, startTime: todayUnix },
-        { id: 2, startTime: yesterdayUnix }
+        { id: 1, startTime: todayUnix, endedVia: 'nfc', durationSec: 1800 },
+        { id: 2, startTime: yesterdayUnix, endedVia: 'timer', durationSec: 1800 }
       ]);
 
       const stats = await getPeriodStats('day');
@@ -143,7 +143,7 @@ describe('statsService', () => {
       mockQuery.mockResolvedValue([{ count: 3 }]);
       (db.settings.get as jest.Mock).mockResolvedValue('3600');
       (db.sessions.listSessions as jest.Mock).mockResolvedValue([
-        { id: 1, startTime: now }
+        { id: 1, startTime: now, endedVia: 'nfc', durationSec: 1800 }
       ]);
       const stats = await getTodayStats();
       expect(stats.focusSec).toBe(1800);
@@ -173,14 +173,20 @@ describe('statsService', () => {
       const cmp = await getPeriodComparison('day');
       expect(cmp.deltaPct).toBe(100);
     });
+
+    it('returns 0 delta when both periods are empty', async () => {
+      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+      const cmp = await getPeriodComparison('day');
+      expect(cmp.deltaPct).toBe(0);
+    });
   });
 
   describe('getCompletionByMode', () => {
     it('groups by mode and calculates pct', async () => {
       (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
         { tagId: 't1', endedVia: 'override', durationSec: 600, endTime: 123 },
-        { tagId: 't1', endedVia: null, durationSec: 600, endTime: null }, // not completed
-        { tagId: 't2', endedVia: 'normal', durationSec: 300, endTime: 456 }
+        { tagId: 't1', endedVia: 'nfc', durationSec: 600, endTime: 456 },
+        { tagId: 't2', endedVia: 'timer', durationSec: 300, endTime: 456 }
       ]);
       (db.tags.getTagById as jest.Mock).mockImplementation((id) => {
         if (id === 't1') return Promise.resolve({ mode: 'deep' });
@@ -224,8 +230,8 @@ describe('statsService', () => {
   describe('getAvgSessionSec', () => {
     it('calculates average for ended sessions', async () => {
       (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
-        { durationSec: 600, endedVia: 'override', startTime: 0, endTime: 600 },
-        { durationSec: 1200, endedVia: 'normal', startTime: 0, endTime: 1200 },
+        { durationSec: 600, endedVia: 'nfc', startTime: 0, endTime: 600 },
+        { durationSec: 1200, endedVia: 'timer', startTime: 0, endTime: 1200 },
         { durationSec: null, endedVia: null, startTime: 0, endTime: null }
       ]);
       const avg = await getAvgSessionSec('week');
@@ -236,6 +242,16 @@ describe('statsService', () => {
       (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([]);
       const avg = await getAvgSessionSec('week');
       expect(avg).toBe(0);
+    });
+  });
+
+  describe('computeStreakDays', () => {
+    it('does not count an override as completion and breaks today streak', () => {
+      const now = Math.floor(Date.now() / 1000);
+      expect(computeStreakDays([
+        { startTime: now, endedVia: 'override', durationSec: 60 },
+        { startTime: now - 86400, endedVia: 'nfc', durationSec: 60 },
+      ])).toBe(0);
     });
   });
 });

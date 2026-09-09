@@ -55,6 +55,32 @@ describe('blockingEngine', () => {
         strict: true
       }));
     });
+
+    it('rejects a second start before creating another row', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue({ id: 42 });
+
+      await expect(blockingEngine.startFocusSession({ tagId: 'tag1', apps: ['pkg1'] }))
+        .rejects.toThrow('already active');
+
+      expect(db.sessions.startSession).not.toHaveBeenCalled();
+      expect(BlockingModule.startBlocking).not.toHaveBeenCalled();
+    });
+
+    it('closes the database session when native startup fails', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(124);
+      (BlockingModule.startBlocking as jest.Mock).mockRejectedValueOnce(new Error('native failed'));
+
+      await expect(blockingEngine.startFocusSession({ tagId: 'tag1', apps: ['pkg1'] }))
+        .rejects.toThrow('native failed');
+
+      expect(db.sessions.endSession).toHaveBeenCalledWith(124, {
+        endedVia: 'start_failed',
+        durationSec: 0,
+        endTime: expect.any(Number),
+      });
+      expect(BlockingModule.stopBlocking).toHaveBeenCalled();
+    });
   });
 
   describe('endFocusSession', () => {
@@ -90,6 +116,15 @@ describe('blockingEngine', () => {
         durationSec: 0
       }));
     });
+
+    it('does not close the database row when native shutdown fails', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue({ id: 123, startTime: 1 });
+      (BlockingModule.stopBlocking as jest.Mock).mockRejectedValueOnce(new Error('stop failed'));
+
+      await expect(blockingEngine.endFocusSession('nfc')).rejects.toThrow('stop failed');
+
+      expect(db.sessions.endSession).not.toHaveBeenCalled();
+    });
   });
 
   describe('clampDurationSec', () => {
@@ -121,6 +156,7 @@ describe('blockingEngine', () => {
       expect(db.sessions.startSession).toHaveBeenCalledWith({
         tagId: 'recovered',
         startTime: 12345,
+        plannedEndTime: null,
         strict: 1,
         apps: ['pkg2']
       });
@@ -142,7 +178,8 @@ describe('blockingEngine', () => {
         sessionId: 111,
         blockedPackages: ['pkg3'],
         strict: true,
-        startedAt: 54321
+        startedAt: 54321,
+        plannedEndTime: null
       });
       expect(res.state).toEqual({ state: 'active' });
     });
@@ -162,6 +199,55 @@ describe('blockingEngine', () => {
         label: 'App',
         createdAt: 100
       });
+    });
+
+    it('auto-completes an elapsed timed database session during recovery', async () => {
+      const startTime = Math.floor(Date.now() / 1000) - 120;
+      (BlockingModule.getActiveBlocking as jest.Mock).mockResolvedValue(null);
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue({
+        id: 333,
+        startTime,
+        plannedEndTime: startTime + 60,
+      });
+
+      const res = await blockingEngine.recoverActiveSession();
+
+      expect(db.sessions.endSession).toHaveBeenCalledWith(333, {
+        endedVia: 'timer',
+        durationSec: 60,
+        endTime: startTime + 60,
+      });
+      expect(res.state).toEqual({ state: 'idle' });
+      expect(res.enforcementHealth).toBe('inactive');
+    });
+
+    it('reconciles mismatched native and database session IDs', async () => {
+      (BlockingModule.getActiveBlocking as jest.Mock).mockResolvedValue({
+        sessionId: 99,
+        blockedPackages: ['old'],
+        strict: true,
+        startedAt: 10,
+      });
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue({
+        id: 100,
+        apps: ['current'],
+        strict: 0,
+        startTime: 20,
+        plannedEndTime: null,
+      });
+      (BlockingModule.getPendingBlockedAttempts as jest.Mock).mockResolvedValue([]);
+
+      const res = await blockingEngine.recoverActiveSession();
+
+      expect(BlockingModule.stopBlocking).toHaveBeenCalled();
+      expect(BlockingModule.startBlocking).toHaveBeenCalledWith({
+        sessionId: 100,
+        blockedPackages: ['current'],
+        strict: false,
+        startedAt: 20,
+        plannedEndTime: null,
+      });
+      expect(res.enforcementHealth).toBe('active');
     });
   });
 

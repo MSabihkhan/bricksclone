@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, Switch, ScrollView, BackHandler, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, Switch, ScrollView, BackHandler, Alert, AppState } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Icon } from '../components/Icon';
 import { useTheme } from '../theme/ThemeContext';
@@ -10,8 +10,8 @@ import { nfcService, formatTagId, normalizeTagId } from '../services/nfc';
 import { db } from '../db';
 import { useFocusStore } from '../state/useFocusStore';
 import {
-  LOCATIONS, validateBrickName, MODE_PRESETS, BRICK_MODES, DURATIONS,
-  modeLabel, buildBrickSummary, CATEGORY_META
+  LOCATIONS, validateBrickName, BRICK_MODES, DURATIONS,
+  modeLabel, buildBrickSummary
 } from '../utils/onboarding';
 import { NfcTag } from '../services/nfc/types';
 import { Tag } from '../db/types';
@@ -33,9 +33,9 @@ export function AddBrick() {
   const [nbName, setNbName] = useState('');
   const [nbLocation, setNbLocation] = useState(LOCATIONS[0].key);
   const [nbMode, setNbMode] = useState<string>('deep');
-  const [nbCategories, setNbCategories] = useState<Record<string, boolean>>(MODE_PRESETS['deep']);
   const [nbDuration, setNbDuration] = useState('50');
   const [nbStrict, setNbStrict] = useState(true);
+  const [globalAppsCount, setGlobalAppsCount] = useState(0);
 
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
@@ -55,6 +55,27 @@ export function AddBrick() {
     }
     checkNfc();
     return () => { unmounted = true; };
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      db.blockedApps.listBlockedApps(),
+      db.settings.get('strict_mode'),
+    ]).then(([apps, strictDefault]) => {
+      setGlobalAppsCount(apps.length);
+      setNbStrict(strictDefault !== '0');
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active') return;
+      const supported = await nfcService.isSupported();
+      const enabled = supported ? await nfcService.isEnabled() : false;
+      setUnsupported(!supported);
+      setDisabled(supported && !enabled);
+    });
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -118,7 +139,7 @@ export function AddBrick() {
         name: finalName,
         location: nbLocation,
         mode: nbMode,
-        categories: nbCategories,
+        categories: {},
         duration: nbDuration,
         strict: nbStrict ? 1 : 0,
         createdAt: Math.floor(Date.now() / 1000)
@@ -148,14 +169,14 @@ export function AddBrick() {
 
   const renderHeader = (title: string, onBack: () => void) => (
     <View style={styles.headerRow}>
-      <TouchableOpacity onPress={onBack} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Icon name="back" size={20} color={colors.text} />
       </TouchableOpacity>
       <View style={styles.headerCenter}>
         <Text style={[styles.eyebrow, { color: colors.faint }]}>REGISTER BRICK</Text>
         <Text style={[styles.headerTitle, { color: colors.text }]}>{title}</Text>
       </View>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <Icon name="x" size={18} color={colors.muted} />
       </TouchableOpacity>
     </View>
@@ -167,7 +188,7 @@ export function AddBrick() {
     
     return (
       <Screen style={styles.container}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Icon name="x" size={18} color={colors.muted} />
         </TouchableOpacity>
         
@@ -203,7 +224,7 @@ export function AddBrick() {
       const appsN = Object.values(registeredTag.categories || {}).filter(Boolean).length;
       return (
         <Screen style={styles.container}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Icon name="x" size={18} color={colors.muted} />
           </TouchableOpacity>
           <View style={styles.contentCenter}>
@@ -234,7 +255,7 @@ export function AddBrick() {
     }
     return (
       <Screen style={styles.container}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Icon name="x" size={18} color={colors.muted} />
         </TouchableOpacity>
         <View style={styles.contentCenter}>
@@ -315,18 +336,16 @@ export function AddBrick() {
     const activeName = nbName.trim() || 'New Brick';
     return (
       <Screen style={{ paddingHorizontal: 0 }}>
-        {renderHeader('Step 2 of 2 · What to block', () => setStep('name'))}
+        {renderHeader('Step 2 of 2 · Focus settings', () => setStep('name'))}
         <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.scrollPad}>
-          <Text style={[styles.title23, { color: colors.text }]}>What should <Text style={{ color: colors.accent }}>{activeName}</Text> block?</Text>
+          <Text style={[styles.title23, { color: colors.text }]}>Configure <Text style={{ color: colors.accent }}>{activeName}</Text></Text>
+          <Text style={[styles.sub14, { color: colors.muted }]}>{globalAppsCount} globally selected apps will be blocked. You can change them in Settings.</Text>
           
           <View style={styles.modeList}>
             {BRICK_MODES.map(m => {
               const on = m.key === nbMode;
               return (
-                <TouchableOpacity key={m.key} style={[styles.modeRow, { backgroundColor: on ? obTint : colors.card, borderColor: on ? colors.accent : colors.border }]} onPress={() => {
-                  setNbMode(m.key);
-                  if (m.key !== 'custom') setNbCategories(MODE_PRESETS[m.key]);
-                }}>
+                <TouchableOpacity key={m.key} style={[styles.modeRow, { backgroundColor: on ? obTint : colors.card, borderColor: on ? colors.accent : colors.border }]} onPress={() => setNbMode(m.key)}>
                   <View style={[styles.modeDot, { borderColor: on ? colors.accent : colors.border, backgroundColor: on ? colors.accent : 'transparent' }]}>
                     {on && <Icon name="check" size={13} color="#fff" />}
                   </View>
@@ -334,22 +353,6 @@ export function AddBrick() {
                     <Text style={[styles.modeTitle, { color: colors.text }]}>{m.label}</Text>
                     <Text style={[styles.modeDesc, { color: colors.muted }]}>{m.desc}</Text>
                   </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-          
-          <Text style={[styles.label11, { color: colors.faint }]}>CATEGORIES</Text>
-          <View style={styles.grid3}>
-            {CATEGORY_META.map(c => {
-              const on = nbCategories[c.key];
-              return (
-                <TouchableOpacity key={c.key} style={[styles.catBtn, { backgroundColor: on ? colors.accent : colors.card, borderColor: on ? colors.accent : colors.border }]} onPress={() => {
-                  setNbMode('custom');
-                  setNbCategories(prev => ({ ...prev, [c.key]: !prev[c.key] }));
-                }}>
-                  <Icon name={c.icon} size={20} color={on ? '#fff' : colors.muted} />
-                  <Text style={[styles.locLabel, { color: on ? '#fff' : colors.muted }]}>{c.label}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -375,7 +378,7 @@ export function AddBrick() {
               <Text style={[styles.strictTitle, { color: colors.text }]}>Strict Mode</Text>
               <Text style={[styles.strictSub, { color: colors.muted }]}>Can't unlock until the session ends</Text>
             </View>
-            <Switch value={nbStrict} onValueChange={setNbStrict} trackColor={{ true: colors.accent }} />
+            <Switch accessibilityLabel="Strict Mode for this Brick" value={nbStrict} onValueChange={setNbStrict} trackColor={{ true: colors.accent }} />
           </View>
         </ScrollView>
         <View style={[styles.bottomPad, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
@@ -392,7 +395,7 @@ export function AddBrick() {
   }
 
   if (step === 'done') {
-    const summaryChips = buildBrickSummary(nbMode, nbCategories, nbDuration);
+    const summaryChips = buildBrickSummary(nbMode, globalAppsCount, nbDuration);
     return (
       <Screen style={styles.container}>
         <View style={styles.contentCenter}>

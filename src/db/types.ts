@@ -21,6 +21,7 @@ export interface Session {
   startTime: number;
   endTime: number | null;
   durationSec: number | null;
+  plannedEndTime?: number | null;
   endedVia: string | null;
   strict: number;
   apps: string[];

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, Pressable, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { SectionHeader } from '../components/SectionHeader';
@@ -20,15 +20,6 @@ import { useNfcSessionStart } from '../hooks/useNfcSessionStart';
 import { modeLabel } from '../utils/onboarding';
 import { formatToday, greetingFor, initialsFor, relativeTime } from './homeHeaderModel';
 
-const categories = [
-  { id: 'social', label: 'Social', icon: 'social' as IconName },
-  { id: 'games', label: 'Games', icon: 'gamepad' as IconName },
-  { id: 'video', label: 'Video', icon: 'film' as IconName },
-  { id: 'news', label: 'News', icon: 'newspaper' as IconName },
-  { id: 'shopping', label: 'Shopping', icon: 'shopping' as IconName },
-  { id: 'messaging', label: 'Messages', icon: 'message' as IconName },
-];
-
 const locIcon: Record<string, IconName> = {
   desk: 'monitor',
   bedroom: 'bed',
@@ -41,11 +32,10 @@ const locIcon: Record<string, IconName> = {
 export function Home() {
   const theme = useTheme();
   const styles = React.useMemo(() => makeStyles(theme), [theme]);
-  const { machine, todayFocusSec, hydrate, startSession, endSession, liveBlocked } = useFocusStore();
+  const { machine, starting, todayFocusSec, hydrate, startSession, endSession, liveBlocked } = useFocusStore();
   const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
   const [tags, setTags] = useState<Tag[]>([]);
   const [activeAppsCount, setActiveAppsCount] = useState(0);
-  const [blockCategories, setBlockCategories] = useState<Record<string, boolean>>({});
   const [activity, setActivity] = useState<BlockedAttempt[]>([]);
   const [userName, setUserName] = useState('');
 
@@ -72,7 +62,6 @@ export function Home() {
         const stats = await getTodayStats();
         const t = await db.tags.listTags();
         const apps = await db.blockedApps.listBlockedApps();
-        const catStr = await db.settings.get('block_categories');
         const name = await db.settings.get('user_name');
 
         const now = Math.floor(Date.now() / 1000);
@@ -92,9 +81,6 @@ export function Home() {
           setTodaySessionsCount(sessions.length);
           setActivity(attempts.slice(0, 5));
           setUserName(name || '');
-          if (catStr) {
-            try { setBlockCategories(JSON.parse(catStr)); } catch { }
-          }
           if (stats) {
             useFocusStore.setState({ liveBlocked: Math.max(useFocusStore.getState().liveBlocked, stats.blocked) });
           }
@@ -105,15 +91,17 @@ export function Home() {
     }, [])
   );
 
-  const toggleCategory = async (id: string) => {
-    const next = { ...blockCategories, [id]: !blockCategories[id] };
-    setBlockCategories(next);
-    await db.settings.set('block_categories', JSON.stringify(next));
+  const beginSession = async (tagId: string) => {
+    try {
+      await startSession(tagId);
+    } catch (error) {
+      Alert.alert('Could not start focus', error instanceof Error ? error.message : String(error));
+    }
   };
 
   const onStartFocus = () => {
     if (tags.length > 0) {
-      startSession(tags[0].id);
+      beginSession(tags[0].id);
     } else {
       navigation.navigate('AddBrick');
     }
@@ -121,7 +109,11 @@ export function Home() {
 
   const handleRegistered = useCallback(async (tagId: string) => {
     if (useFocusStore.getState().machine === 'active') return;
-    await startSession(tagId);
+    try {
+      await startSession(tagId);
+    } catch (error) {
+      Alert.alert('Could not start focus', error instanceof Error ? error.message : String(error));
+    }
   }, [startSession]);
 
   const handleUnregistered = useCallback(() => {
@@ -202,7 +194,7 @@ export function Home() {
               <Text style={styles.heroGoal}>{h}h {m}m of {goalH}h {goalM > 0 ? `${goalM}m ` : ''}goal</Text>
             </View>
           </View>
-          <Button label="Start Focus Session" icon="play" onPress={onStartFocus} />
+          <Button label={starting ? 'Starting…' : 'Start Focus Session'} icon="play" onPress={onStartFocus} disabled={starting} />
         </View>
 
         <View style={styles.metricsGrid}>
@@ -225,10 +217,9 @@ export function Home() {
         <SectionHeader title="My Bricks" right="Tap a Brick to focus" />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 11 }}>
           {tags.map((tag) => {
-            const appsN = Object.values(tag.categories || {}).filter(Boolean).length;
             const iconName = locIcon[tag.location || 'desk'] || 'grid';
             return (
-              <Pressable key={tag.id} style={styles.brickCard} onPress={() => startSession(tag.id)}>
+              <Pressable key={tag.id} style={styles.brickCard} disabled={starting} accessibilityRole="button" accessibilityLabel={`Start ${tag.name} focus session`} onPress={() => beginSession(tag.id)}>
                 <View style={styles.brickCardTop}>
                   <View style={styles.brickIconBox}>
                     <Icon name={iconName} size={20} color={theme.colors.accent} />
@@ -237,7 +228,7 @@ export function Home() {
                 </View>
                 <View>
                   <Text style={styles.brickName}>{tag.name}</Text>
-                  <Text style={styles.brickMeta}>{modeLabel(tag.mode)} · {appsN} apps</Text>
+                  <Text style={styles.brickMeta}>{modeLabel(tag.mode)} · {activeAppsCount} global apps</Text>
                 </View>
               </Pressable>
             );
@@ -252,24 +243,6 @@ export function Home() {
             </View>
           </Pressable>
         </ScrollView>
-
-        <SectionHeader title="Blocking" right="Tap to toggle" />
-        <View style={styles.blockingGrid}>
-          {categories.map((c) => {
-            const on = !!blockCategories[c.id];
-            return (
-              <Pressable key={c.id} style={[styles.blockCard, on && styles.blockCardOn]} onPress={() => toggleCategory(c.id)}>
-                <View style={[styles.blockIconBox, on && styles.blockIconBoxOn]}>
-                  <Icon name={c.icon} size={20} color={on ? '#fff' : theme.colors.muted} />
-                </View>
-                <View>
-                  <Text style={[styles.blockLabel, on && { color: theme.colors.text }]}>{c.label}</Text>
-                  <Text style={[styles.blockStatus, on && { color: theme.colors.accent }]}>{on ? 'BLOCKED' : 'Allowed'}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
 
         <SectionHeader title="Live Activity" right={<View style={styles.livePill}><Animated.View style={[styles.livePillDot, { opacity: dotAnim }]} /><Text style={styles.livePillText}>Live</Text></View>} />
         <View style={styles.activityCard}>
@@ -332,14 +305,6 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   brickMeta: { fontSize: 11, fontWeight: '600', color: theme.colors.muted, marginTop: 2 },
 
   addBrickCard: { width: 150, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: 18, padding: 16, minHeight: 118, justifyContent: 'space-between', borderStyle: 'dashed' },
-
-  blockingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 11 },
-  blockCard: { width: '31%', minHeight: 104, borderRadius: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, padding: 12, justifyContent: 'space-between' },
-  blockCardOn: { backgroundColor: theme.colors.accentSoft, borderColor: theme.colors.accent },
-  blockIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
-  blockIconBoxOn: { backgroundColor: theme.colors.accent },
-  blockLabel: { fontSize: 13, fontWeight: '700', color: theme.colors.muted },
-  blockStatus: { fontSize: 10, fontWeight: '800', color: theme.colors.faint, letterSpacing: 1, marginTop: 2 },
 
   livePill: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   livePillDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.green },

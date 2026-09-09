@@ -7,6 +7,7 @@ export interface BlockingState {
   blockedPackages: string[];
   strict: boolean;
   startedAt: number;
+  plannedEndTime?: number | null;
 }
 
 export interface BlockedAttempt {
@@ -30,7 +31,8 @@ const moduleImpl = raw
         blockedPackages: string[];
         strict: boolean;
         startedAt: number;
-      }): Promise<void> => raw.startBlocking(params.sessionId, params.blockedPackages, params.strict, params.startedAt),
+        plannedEndTime?: number | null;
+      }): Promise<void> => raw.startBlocking(params.sessionId, params.blockedPackages, params.strict, params.startedAt, params.plannedEndTime ?? null),
       stopBlocking: (): Promise<void> => raw.stopBlocking(),
       isBlockingActive: (): Promise<boolean> => raw.isBlockingActive(),
       getActiveBlocking: (): Promise<BlockingState | null> => raw.getActiveBlocking(),

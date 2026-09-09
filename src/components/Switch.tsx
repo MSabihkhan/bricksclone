@@ -6,9 +6,10 @@ export interface SwitchProps {
   value: boolean;
   onValueChange: (v: boolean) => void;
   disabled?: boolean;
+  accessibilityLabel?: string;
 }
 
-export function Switch({ value, onValueChange, disabled }: SwitchProps) {
+export function Switch({ value, onValueChange, disabled, accessibilityLabel }: SwitchProps) {
   const theme = useTheme();
   const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
@@ -34,6 +35,9 @@ export function Switch({ value, onValueChange, disabled }: SwitchProps) {
     <Pressable
       onPress={() => onValueChange(!value)}
       disabled={disabled}
+      accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: value, disabled: !!disabled }}
       style={{ opacity: disabled ? 0.5 : 1 }}
     >
       <Animated.View style={[styles.track, { backgroundColor }]}>

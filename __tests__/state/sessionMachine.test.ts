@@ -8,10 +8,10 @@ describe('sessionMachine', () => {
       expect(reducer(state, event)).toEqual({ state: 'active' });
     });
 
-    it('START active->active no-op', () => {
+    it('rejects START when already active', () => {
       const state: SessionState = { state: 'active' };
       const event: SessionEvent = { type: 'START' };
-      expect(reducer(state, event)).toEqual({ state: 'active' });
+      expect(() => reducer(state, event)).toThrow('already active');
     });
 
     it('END_NFC active->idle', () => {
@@ -61,6 +61,7 @@ describe('sessionMachine', () => {
   describe('endedViaForEvent', () => {
     it('mapping incl null for START/recover', () => {
       expect(endedViaForEvent({ type: 'END_NFC' })).toBe('nfc');
+      expect(endedViaForEvent({ type: 'END_TIMER' })).toBe('timer');
       expect(endedViaForEvent({ type: 'END_OVERRIDE' })).toBe('override');
       expect(endedViaForEvent({ type: 'FORCE_KILL_RECOVER' })).toBe('force_kill');
       expect(endedViaForEvent({ type: 'SERVICE_KILL_RECOVER' })).toBe('service_kill');

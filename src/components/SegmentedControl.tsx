@@ -49,6 +49,9 @@ export function SegmentedControl({ options, value, onChange, width = '100%' }: S
             key={opt.value}
             style={styles.segment}
             onPress={() => onChange(opt.value)}
+            accessibilityRole="tab"
+            accessibilityLabel={opt.label}
+            accessibilityState={{ selected: isActive }}
           >
             <Text style={[styles.label, isActive ? styles.labelActive : [styles.labelInactive, { color: theme.colors.muted }]]}>
               {opt.label}

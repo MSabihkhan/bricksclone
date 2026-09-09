@@ -33,7 +33,13 @@ export function RingProgress({ size, stroke, progress, color, trackColor = 'tran
   });
 
   return (
-    <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+    <View
+      style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel="Progress"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(Math.max(0, Math.min(progress, 1)) * 100) }}
+    >
       <Svg width={size} height={size} style={{ transform: [{ rotate: '-90deg' }] }}>
         <Circle
           cx={size / 2}

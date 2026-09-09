@@ -9,7 +9,8 @@ data class BlockingState(
     val sessionId: Long,
     val blockedPackages: List<String>,
     val strict: Boolean,
-    val startedAt: Long
+    val startedAt: Long,
+    val plannedEndTime: Long?
 )
 
 data class Attempt(
@@ -23,6 +24,7 @@ object StateStore {
     private const val PREFS_NAME = "focus_blocking"
     private const val KEY_ACTIVE_STATE = "active_state"
     private const val KEY_ATTEMPTS = "attempts"
+    private const val MAX_PENDING_ATTEMPTS = 500
 
     private lateinit var prefs: SharedPreferences
 
@@ -43,6 +45,7 @@ object StateStore {
                 put("blockedPackages", packagesArray)
                 put("strict", active.strict)
                 put("startedAt", active.startedAt)
+                if (active.plannedEndTime != null) put("plannedEndTime", active.plannedEndTime)
             }
             prefs.edit().putString(KEY_ACTIVE_STATE, json.toString()).apply()
         }
@@ -61,7 +64,8 @@ object StateStore {
                 sessionId = json.getLong("sessionId"),
                 blockedPackages = packages,
                 strict = json.getBoolean("strict"),
-                startedAt = json.getLong("startedAt")
+                startedAt = json.getLong("startedAt"),
+                plannedEndTime = if (json.has("plannedEndTime") && !json.isNull("plannedEndTime")) json.getLong("plannedEndTime") else null
             )
         } catch (e: Exception) {
             null
@@ -79,7 +83,12 @@ object StateStore {
             put("createdAt", ts)
         }
         attemptsArray.put(attemptObj)
-        prefs.edit().putString(KEY_ATTEMPTS, attemptsArray.toString()).apply()
+        val boundedAttempts = JSONArray()
+        val firstIndex = maxOf(0, attemptsArray.length() - MAX_PENDING_ATTEMPTS)
+        for (i in firstIndex until attemptsArray.length()) {
+            boundedAttempts.put(attemptsArray.getJSONObject(i))
+        }
+        prefs.edit().putString(KEY_ATTEMPTS, boundedAttempts.toString()).apply()
     }
 
     fun drainAttempts(): List<Attempt> {

@@ -129,12 +129,15 @@ export function EmergencyHistory() {
                   let badgeColor = colors.blue;
                   let badgeText = 'Active';
                   if (s.endTime) {
-                    if (s.endedVia === 'nfc') {
+                    if (s.endedVia === 'nfc' || s.endedVia === 'timer') {
                       badgeColor = colors.green;
                       badgeText = 'Completed';
-                    } else {
+                    } else if (s.endedVia === 'override') {
                       badgeColor = colors.accent;
                       badgeText = 'Overridden';
+                    } else {
+                      badgeColor = colors.muted;
+                      badgeText = 'Interrupted';
                     }
                   }
 

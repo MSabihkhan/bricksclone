@@ -4,6 +4,8 @@ import { reducer, SessionState } from '../../state/sessionMachine';
 import { BlockingModule, addAttemptListener } from '../../native/BlockingModule';
 
 const MAX_SESSION_SEC = 24 * 60 * 60;
+export type SessionEndReason = 'nfc' | 'timer' | 'override';
+export type EnforcementHealth = 'active' | 'degraded' | 'inactive';
 
 export function clampDurationSec(sec: number): number {
   return Math.max(0, Math.min(sec, MAX_SESSION_SEC));
@@ -11,6 +13,9 @@ export function clampDurationSec(sec: number): number {
 
 async function startFocusSession(params: { tagId: string; apps: string[] }): Promise<{ sessionId: number; state: 'active' }> {
   const activeSession = await db.sessions.getActiveSession();
+  if (activeSession) {
+    throw new Error('A focus session is already active');
+  }
   const state: SessionState = activeSession ? { state: 'active' } : { state: 'idle' };
   
   const newState = reducer(state, { type: 'START' });
@@ -30,45 +35,64 @@ async function startFocusSession(params: { tagId: string; apps: string[] }): Pro
   }
 
   const startedAt = Math.floor(Date.now() / 1000);
+  const durationMinutes = tag && tag.duration !== 'inf' ? Number(tag.duration) : NaN;
+  const plannedEndTime = Number.isFinite(durationMinutes) && durationMinutes > 0
+    ? startedAt + durationMinutes * 60
+    : null;
   const sessionId = await db.sessions.startSession({
     tagId: params.tagId,
     startTime: startedAt,
+    plannedEndTime,
     strict,
     apps: params.apps,
   });
 
-  await BlockingModule.startBlocking({
-    sessionId,
-    blockedPackages: params.apps,
-    strict: strict === 1,
-    startedAt,
-  });
+  try {
+    await BlockingModule.startBlocking({
+      sessionId,
+      blockedPackages: params.apps,
+      strict: strict === 1,
+      startedAt,
+      plannedEndTime,
+    });
+  } catch (error) {
+    await db.sessions.endSession(sessionId, {
+      endedVia: 'start_failed',
+      durationSec: 0,
+      endTime: startedAt,
+    });
+    try { await BlockingModule.stopBlocking(); } catch { /* best-effort cleanup */ }
+    throw error;
+  }
 
   return { sessionId, state: 'active' };
 }
 
-async function endFocusSession(via: 'nfc' | 'override'): Promise<SessionState> {
+async function endFocusSession(via: SessionEndReason): Promise<SessionState> {
   const activeSession = await db.sessions.getActiveSession();
   if (!activeSession) {
     return { state: 'idle' };
   }
 
-  const newState = reducer({ state: 'active' }, { type: via === 'nfc' ? 'END_NFC' : 'END_OVERRIDE' });
+  const event = via === 'nfc' ? 'END_NFC' : via === 'timer' ? 'END_TIMER' : 'END_OVERRIDE';
+  const newState = reducer({ state: 'active' }, { type: event });
   
   const now = Math.floor(Date.now() / 1000);
-  const durationSec = clampDurationSec(now - activeSession.startTime);
-  
+  await BlockingModule.stopBlocking();
+
+  const effectiveEnd = via === 'timer' && activeSession.plannedEndTime
+    ? Math.min(now, activeSession.plannedEndTime)
+    : now;
   await db.sessions.endSession(activeSession.id, {
     endedVia: via,
-    durationSec,
+    durationSec: clampDurationSec(effectiveEnd - activeSession.startTime),
+    endTime: effectiveEnd,
   });
-
-  await BlockingModule.stopBlocking();
 
   return newState;
 }
 
-async function recoverActiveSession(): Promise<{ state: SessionState; activeSession: Session | undefined }> {
+async function recoverActiveSession(): Promise<{ state: SessionState; activeSession: Session | undefined; enforcementHealth: EnforcementHealth }> {
   let nativeActive = null;
   try {
     nativeActive = await BlockingModule.getActiveBlocking();
@@ -77,11 +101,28 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
   }
   
   const activeSession = await db.sessions.getActiveSession();
+  const now = Math.floor(Date.now() / 1000);
+
+  if (nativeActive?.plannedEndTime && nativeActive.plannedEndTime <= now && !activeSession) {
+    try { await BlockingModule.stopBlocking(); } catch { /* the service may already be stopping */ }
+    return { state: { state: 'idle' }, activeSession: undefined, enforcementHealth: 'inactive' };
+  }
+
+  if (activeSession?.plannedEndTime && activeSession.plannedEndTime <= now) {
+    try { await BlockingModule.stopBlocking(); } catch { /* native may already be stopped */ }
+    await db.sessions.endSession(activeSession.id, {
+      endedVia: 'timer',
+      durationSec: clampDurationSec(activeSession.plannedEndTime - activeSession.startTime),
+      endTime: activeSession.plannedEndTime,
+    });
+    return { state: { state: 'idle' }, activeSession: undefined, enforcementHealth: 'inactive' };
+  }
 
   if (nativeActive && !activeSession) {
     const id = await db.sessions.startSession({
       tagId: 'recovered',
       startTime: nativeActive.startedAt,
+      plannedEndTime: nativeActive.plannedEndTime ?? null,
       strict: nativeActive.strict ? 1 : 0,
       apps: nativeActive.blockedPackages,
     });
@@ -102,20 +143,43 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
     
     return {
       state: { state: 'active' },
-      activeSession: await db.sessions.getActiveSession()
+      activeSession: await db.sessions.getActiveSession(),
+      enforcementHealth: 'active',
     };
   } else if (activeSession && !nativeActive) {
+    let restarted = false;
     try {
       await BlockingModule.startBlocking({
         sessionId: activeSession.id,
         blockedPackages: activeSession.apps,
         strict: activeSession.strict === 1,
         startedAt: activeSession.startTime,
+        plannedEndTime: activeSession.plannedEndTime ?? null,
       });
+      restarted = true;
     } catch {
-      // ignore
+      restarted = false;
     }
+    return {
+      state: { state: 'active' },
+      activeSession,
+      enforcementHealth: restarted ? 'active' : 'degraded',
+    };
   } else if (activeSession && nativeActive) {
+    if (nativeActive.sessionId !== activeSession.id) {
+      try {
+        await BlockingModule.stopBlocking();
+        await BlockingModule.startBlocking({
+          sessionId: activeSession.id,
+          blockedPackages: activeSession.apps,
+          strict: activeSession.strict === 1,
+          startedAt: activeSession.startTime,
+          plannedEndTime: activeSession.plannedEndTime ?? null,
+        });
+      } catch {
+        return { state: { state: 'active' }, activeSession, enforcementHealth: 'degraded' };
+      }
+    }
     try {
       const attempts = await BlockingModule.getPendingBlockedAttempts();
       for (const attempt of attempts) {
@@ -135,8 +199,22 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
   
   return {
     state: currentState,
-    activeSession: await db.sessions.getActiveSession()
+    activeSession: await db.sessions.getActiveSession(),
+    enforcementHealth: currentState.state === 'active' ? 'active' : 'inactive',
   };
+}
+
+async function checkEnforcementHealth(): Promise<EnforcementHealth> {
+  try {
+    const [nativeActive, usage, accessibility] = await Promise.all([
+      BlockingModule.isBlockingActive(),
+      BlockingModule.hasUsageAccess(),
+      BlockingModule.isAccessibilityEnabled(),
+    ]);
+    return nativeActive && (usage || accessibility) ? 'active' : 'degraded';
+  } catch {
+    return 'degraded';
+  }
 }
 
 function attachBlockedAttemptListener(handler: (attempt: { packageName: string; label: string; createdAt: number }) => void): () => void {
@@ -151,4 +229,5 @@ export const blockingEngine = {
   recoverActiveSession,
   attachBlockedAttemptListener,
   clampDurationSec,
+  checkEnforcementHealth,
 };

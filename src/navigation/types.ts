@@ -14,7 +14,6 @@ export type OnboardingStackParamList = {
 
 export type HomeStackParamList = {
   Home: undefined;
-  FocusLock: undefined;
   AddBrick: undefined;
 };
 
@@ -33,7 +32,6 @@ export type MainTabsParamList = {
 };
 
 export type ModalStackParamList = {
-  Blocked: undefined;
   EmergencyOverride: undefined;
 };
 

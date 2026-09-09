@@ -7,7 +7,10 @@ jest.mock('../../src/db', () => ({
   db: {
     tags: {
       registerTag: jest.fn().mockResolvedValue(undefined),
-    }
+    },
+    settings: {
+      get: jest.fn().mockResolvedValue(undefined),
+    },
   }
 }));
 
@@ -30,5 +33,13 @@ describe('registerTagModel', () => {
         strict: 1
       })
     );
+  });
+
+  it('uses the configured default strict mode', async () => {
+    (db.settings.get as jest.Mock).mockResolvedValueOnce('0');
+
+    await registerBrick('aabb', 'Sofa', 'sofa');
+
+    expect(db.tags.registerTag).toHaveBeenCalledWith(expect.objectContaining({ strict: 0 }));
   });
 });

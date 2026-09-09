@@ -70,6 +70,9 @@ export function Button({ label, onPress, variant = 'primary', disabled = false, 
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       style={{ width: '100%' }}
     >
       <Animated.View style={[styles.container, vStyles.container, { transform: [{ scale }] }]}>
