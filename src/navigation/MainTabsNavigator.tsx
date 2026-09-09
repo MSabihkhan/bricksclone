@@ -95,9 +95,13 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   );
 }
 
+function renderCustomTabBar(props: BottomTabBarProps) {
+  return <CustomTabBar {...props} />;
+}
+
 export function MainTabsNavigator() {
   return (
-    <Tab.Navigator tabBar={CustomTabBar} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={renderCustomTabBar} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="HomeTab" component={HomeStackNavigator} />
       <Tab.Screen name="Insights" component={Insights} />
       <Tab.Screen name="SettingsTab" component={SettingsStackNavigator} />
