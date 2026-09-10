@@ -4,10 +4,18 @@ const raw = NativeModules.BricksBlocking;
 
 export interface BlockingState {
   sessionId: number;
+  tagId?: string | null;
   blockedPackages: string[];
   strict: boolean;
   startedAt: number;
   plannedEndTime?: number | null;
+}
+
+export interface PendingSessionCompletion {
+  sessionId: number;
+  endedVia: 'nfc' | 'timer';
+  endTime: number;
+  durationSec: number;
 }
 
 export interface BlockedAttempt {
@@ -28,11 +36,12 @@ const moduleImpl = raw
   ? {
       startBlocking: (params: {
         sessionId: number;
+        tagId?: string | null;
         blockedPackages: string[];
         strict: boolean;
         startedAt: number;
         plannedEndTime?: number | null;
-      }): Promise<void> => raw.startBlocking(params.sessionId, params.blockedPackages, params.strict, params.startedAt, params.plannedEndTime ?? null),
+      }): Promise<void> => raw.startBlocking(params.sessionId, params.tagId ?? null, params.blockedPackages, params.strict, params.startedAt, params.plannedEndTime ?? null),
       stopBlocking: (): Promise<void> => raw.stopBlocking(),
       isBlockingActive: (): Promise<boolean> => raw.isBlockingActive(),
       getActiveBlocking: (): Promise<BlockingState | null> => raw.getActiveBlocking(),
@@ -42,6 +51,8 @@ const moduleImpl = raw
       requestAccessibility: (): Promise<void> => raw.requestAccessibility(),
       getForegroundPackage: (): Promise<string | null> => raw.getForegroundPackage(),
       getPendingBlockedAttempts: (): Promise<BlockedAttempt[]> => raw.getPendingBlockedAttempts(),
+      getPendingSessionCompletion: (): Promise<PendingSessionCompletion | null> => raw.getPendingSessionCompletion(),
+      clearPendingSessionCompletion: (): Promise<void> => raw.clearPendingSessionCompletion(),
       getManufacturer: (): Promise<string> => raw.getManufacturer(),
       hasIgnoringBatteryOptimizations: (): Promise<boolean> => raw.hasIgnoringBatteryOptimizations(),
       requestBatteryOptimizationExemption: (): Promise<void> => raw.requestBatteryOptimizationExemption(),
@@ -61,6 +72,8 @@ const moduleImpl = raw
       requestAccessibility: stub,
       getForegroundPackage: stub,
       getPendingBlockedAttempts: stub,
+      getPendingSessionCompletion: stub,
+      clearPendingSessionCompletion: stub,
       getManufacturer: stub,
       hasIgnoringBatteryOptimizations: stub,
       requestBatteryOptimizationExemption: stub,

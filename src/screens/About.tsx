@@ -35,7 +35,7 @@ export function About() {
           <Text style={[styles.appName, { color: colors.text }]}>Bricks</Text>
           <Text style={[styles.appTagline, { color: colors.muted }]}>NFC focus companion</Text>
           <View style={[styles.versionPill, { borderColor: colors.border }]}>
-            <Text style={[styles.versionText, { color: colors.muted }]}>v1.0.0</Text>
+            <Text style={[styles.versionText, { color: colors.muted }]}>v1.0.1</Text>
           </View>
         </View>
 

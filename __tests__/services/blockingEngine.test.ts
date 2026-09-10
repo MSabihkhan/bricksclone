@@ -27,6 +27,8 @@ jest.mock('../../src/native/BlockingModule', () => ({
     stopBlocking: jest.fn(),
     getActiveBlocking: jest.fn(),
     getPendingBlockedAttempts: jest.fn(),
+    getPendingSessionCompletion: jest.fn().mockResolvedValue(null),
+    clearPendingSessionCompletion: jest.fn(),
   },
   addAttemptListener: jest.fn(),
 }));
@@ -176,6 +178,7 @@ describe('blockingEngine', () => {
 
       expect(BlockingModule.startBlocking).toHaveBeenCalledWith({
         sessionId: 111,
+        tagId: undefined,
         blockedPackages: ['pkg3'],
         strict: true,
         startedAt: 54321,
@@ -242,12 +245,39 @@ describe('blockingEngine', () => {
       expect(BlockingModule.stopBlocking).toHaveBeenCalled();
       expect(BlockingModule.startBlocking).toHaveBeenCalledWith({
         sessionId: 100,
+        tagId: undefined,
         blockedPackages: ['current'],
         strict: false,
         startedAt: 20,
         plannedEndTime: null,
       });
       expect(res.enforcementHealth).toBe('active');
+    });
+
+    it('reconciles a native NFC completion without reopening blocking', async () => {
+      (BlockingModule.getPendingSessionCompletion as jest.Mock).mockResolvedValueOnce({
+        sessionId: 444,
+        endedVia: 'nfc',
+        endTime: 1000,
+        durationSec: 600,
+      });
+      (BlockingModule.getPendingBlockedAttempts as jest.Mock).mockResolvedValue([]);
+      (db.sessions.getActiveSession as jest.Mock)
+        .mockResolvedValueOnce({ id: 444, startTime: 400 })
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(undefined);
+      (BlockingModule.getActiveBlocking as jest.Mock).mockResolvedValue(null);
+
+      const res = await blockingEngine.recoverActiveSession();
+
+      expect(db.sessions.endSession).toHaveBeenCalledWith(444, {
+        endedVia: 'nfc',
+        durationSec: 600,
+        endTime: 1000,
+      });
+      expect(BlockingModule.clearPendingSessionCompletion).toHaveBeenCalled();
+      expect(BlockingModule.startBlocking).not.toHaveBeenCalled();
+      expect(res.state).toEqual({ state: 'idle' });
     });
   });
 

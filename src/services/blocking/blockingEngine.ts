@@ -50,6 +50,7 @@ async function startFocusSession(params: { tagId: string; apps: string[] }): Pro
   try {
     await BlockingModule.startBlocking({
       sessionId,
+      tagId: params.tagId,
       blockedPackages: params.apps,
       strict: strict === 1,
       startedAt,
@@ -93,6 +94,35 @@ async function endFocusSession(via: SessionEndReason): Promise<SessionState> {
 }
 
 async function recoverActiveSession(): Promise<{ state: SessionState; activeSession: Session | undefined; enforcementHealth: EnforcementHealth }> {
+  try {
+    const pendingCompletion = await BlockingModule.getPendingSessionCompletion();
+    if (pendingCompletion) {
+      const pendingSession = await db.sessions.getActiveSession();
+      if (pendingSession?.id === pendingCompletion.sessionId) {
+        await db.sessions.endSession(pendingSession.id, {
+          endedVia: pendingCompletion.endedVia,
+          durationSec: clampDurationSec(pendingCompletion.durationSec),
+          endTime: pendingCompletion.endTime,
+        });
+      }
+      try {
+        const attempts = await BlockingModule.getPendingBlockedAttempts();
+        for (const attempt of attempts) {
+          await db.blockedAttempts.recordAttempt({
+            sessionId: pendingCompletion.sessionId,
+            packageName: attempt.packageName,
+            label: attempt.label,
+            createdAt: attempt.createdAt,
+          });
+        }
+      } finally {
+        await BlockingModule.clearPendingSessionCompletion();
+      }
+    }
+  } catch {
+    // Leave the marker intact when reconciliation fails so a later launch can retry.
+  }
+
   let nativeActive = null;
   try {
     nativeActive = await BlockingModule.getActiveBlocking();
@@ -120,7 +150,7 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
 
   if (nativeActive && !activeSession) {
     const id = await db.sessions.startSession({
-      tagId: 'recovered',
+      tagId: nativeActive.tagId || 'recovered',
       startTime: nativeActive.startedAt,
       plannedEndTime: nativeActive.plannedEndTime ?? null,
       strict: nativeActive.strict ? 1 : 0,
@@ -151,6 +181,7 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
     try {
       await BlockingModule.startBlocking({
         sessionId: activeSession.id,
+        tagId: activeSession.tagId,
         blockedPackages: activeSession.apps,
         strict: activeSession.strict === 1,
         startedAt: activeSession.startTime,
@@ -171,6 +202,7 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
         await BlockingModule.stopBlocking();
         await BlockingModule.startBlocking({
           sessionId: activeSession.id,
+          tagId: activeSession.tagId,
           blockedPackages: activeSession.apps,
           strict: activeSession.strict === 1,
           startedAt: activeSession.startTime,

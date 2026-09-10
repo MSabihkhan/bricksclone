@@ -204,7 +204,7 @@ export function Settings() {
         </Card>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v1.0.0</Text>
+          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v1.0.1</Text>
         </View>
       </ScrollView>
     </Screen>

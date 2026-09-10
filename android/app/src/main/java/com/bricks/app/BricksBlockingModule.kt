@@ -19,7 +19,7 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
-    fun startBlocking(sessionId: Double, blockedPackages: ReadableArray, strict: Boolean, startedAt: Double, plannedEndTime: Double?, promise: Promise) {
+    fun startBlocking(sessionId: Double, tagId: String?, blockedPackages: ReadableArray, strict: Boolean, startedAt: Double, plannedEndTime: Double?, promise: Promise) {
         try {
             val packages = mutableListOf<String>()
             for (i in 0 until blockedPackages.size()) {
@@ -27,10 +27,12 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
             }
             val state = BlockingState(
                 sessionId = sessionId.toLong(),
+                tagId = tagId,
                 blockedPackages = packages,
                 strict = strict,
                 startedAt = startedAt.toLong(),
-                plannedEndTime = plannedEndTime?.toLong()
+                plannedEndTime = plannedEndTime?.toLong(),
+                blockedCount = 0
             )
             StateStore.save(state)
             BlockGuard.reset()
@@ -76,6 +78,7 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
         } else {
             val map = Arguments.createMap()
             map.putDouble("sessionId", state.sessionId.toDouble())
+            if (state.tagId != null) map.putString("tagId", state.tagId) else map.putNull("tagId")
             val array = Arguments.createArray()
             state.blockedPackages.forEach { array.pushString(it) }
             map.putArray("blockedPackages", array)
@@ -169,6 +172,28 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
         } catch (e: Exception) {
             promise.reject(e)
         }
+    }
+
+    @ReactMethod
+    fun getPendingSessionCompletion(promise: Promise) {
+        val completion = StateStore.loadPendingCompletion()
+        if (completion == null) {
+            promise.resolve(null)
+            return
+        }
+        val map = Arguments.createMap().apply {
+            putDouble("sessionId", completion.sessionId.toDouble())
+            putString("endedVia", completion.endedVia)
+            putDouble("endTime", completion.endTime.toDouble())
+            putDouble("durationSec", completion.durationSec.toDouble())
+        }
+        promise.resolve(map)
+    }
+
+    @ReactMethod
+    fun clearPendingSessionCompletion(promise: Promise) {
+        StateStore.clearPendingCompletion()
+        promise.resolve(null)
     }
 
     @ReactMethod

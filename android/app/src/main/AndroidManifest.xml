@@ -51,7 +51,16 @@
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
 
-        <!-- Tapping a Brick while the app is closed launches it. -->
+      </activity>
+
+      <!-- NFC is intercepted natively. During focus it unlocks without opening the app;
+           while idle it forwards the tag to MainActivity for the normal start flow. -->
+      <activity
+        android:name=".NfcUnlockActivity"
+        android:exported="true"
+        android:excludeFromRecents="true"
+        android:noHistory="true"
+        android:theme="@style/NfcUnlockTheme">
         <intent-filter>
             <action android:name="android.nfc.action.TAG_DISCOVERED" />
             <category android:name="android.intent.category.DEFAULT" />

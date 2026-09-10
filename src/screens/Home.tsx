@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated, Pressable, Alert, AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { SectionHeader } from '../components/SectionHeader';
@@ -54,6 +54,13 @@ export function Home() {
     ).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') hydrate().catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [hydrate]);
 
   useFocusEffect(
     useCallback(() => {

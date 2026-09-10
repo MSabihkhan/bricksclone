@@ -52,6 +52,17 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
     const { state, activeSession, enforcementHealth } = await blockingEngine.recoverActiveSession();
     set({ machine: state.state, activeSession: activeSession || null, enforcementHealth });
 
+    if (state.state === 'idle') {
+      if (detachAttemptListener) {
+        detachAttemptListener();
+        detachAttemptListener = null;
+      }
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    }
+
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date();

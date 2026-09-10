@@ -92,8 +92,7 @@ class FocusBlockingService : Service() {
 
                     val activeState = StateStore.load()
                     if (activeState?.plannedEndTime != null && System.currentTimeMillis() / 1000 >= activeState.plannedEndTime) {
-                        StateStore.save(null)
-                        BlockGuard.reset()
+                        FocusCompletion.complete(applicationContext, activeState, "timer")
                         isRunning = false
                         stopSelf()
                         break
