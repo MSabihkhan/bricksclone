@@ -16,6 +16,7 @@ import { getPeriodStats } from '../services/stats/statsService';
 import { initialsFor } from './homeHeaderModel';
 
 type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
+type SessionEndMode = 'brick' | 'timer';
 
 export function Settings() {
   const theme = useTheme();
@@ -26,6 +27,7 @@ export function Settings() {
   const [blockedAppsCount, setBlockedAppsCount] = useState(0);
 
   const [strictMode, setStrictMode] = useState(false);
+  const [sessionEndMode, setSessionEndMode] = useState<SessionEndMode>('brick');
   const [dailyGoal, setDailyGoal] = useState(210);
   const [userName, setUserName] = useState('');
   const [editingName, setEditingName] = useState(false);
@@ -44,6 +46,7 @@ export function Settings() {
             setBlockedAppsCount(apps.length);
             
             setStrictMode(sets.strict_mode === '1');
+            setSessionEndMode(sets.session_end_mode === 'timer' ? 'timer' : 'brick');
             if (sets.daily_goal) setDailyGoal(Math.floor(Number(sets.daily_goal) / 60));
             setUserName(sets.user_name || '');
           }
@@ -68,6 +71,12 @@ export function Settings() {
   const handleGoalChange = (val: number) => {
     setDailyGoal(val);
     updateSetting('daily_goal', String(val * 60));
+  };
+
+  const handleSessionEndModeChange = (value: string) => {
+    const mode: SessionEndMode = value === 'timer' ? 'timer' : 'brick';
+    setSessionEndMode(mode);
+    updateSetting('session_end_mode', mode);
   };
 
   const formatGoal = (mins: number) => {
@@ -121,7 +130,28 @@ export function Settings() {
         <View style={styles.section}>
           <Text style={[styles.eyebrow, { color: theme.colors.faint }]}>FOCUS</Text>
           <Card radius={20} padding={0} style={{ overflow: 'hidden' }}>
-            <View style={styles.listRow}>
+            <View style={styles.endModeRow}>
+              <View style={styles.endModeHeading}>
+                <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
+                  <Icon name="clock" size={18} color={theme.colors.text} />
+                </View>
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Session ending</Text>
+                  <Text style={[styles.rowSub, { color: theme.colors.muted }]}>Choose what can complete focus</Text>
+                </View>
+              </View>
+              <SegmentedControl
+                options={[{ label: 'Brick only', value: 'brick' }, { label: 'Time limit', value: 'timer' }]}
+                value={sessionEndMode}
+                onChange={handleSessionEndModeChange}
+              />
+              <Text style={[styles.endModeHint, { color: theme.colors.muted }]}>
+                {sessionEndMode === 'brick'
+                  ? 'Focus keeps running until you tap the same Brick.'
+                  : 'Focus ends when the duration saved on that Brick is reached.'}
+              </Text>
+            </View>
+            <View style={[styles.listRow, { borderTopWidth: 1, borderTopColor: theme.colors.border }]}>
               <View style={[styles.iconBox, { backgroundColor: theme.colors.card2 }]}>
                 <Icon name="shield" size={18} color={theme.colors.text} />
               </View>
@@ -204,7 +234,7 @@ export function Settings() {
         </Card>
 
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v1.0.1</Text>
+          <Text style={[styles.footerText, { color: theme.colors.faint }]}>Bricks · v1.0.2</Text>
         </View>
       </ScrollView>
     </Screen>
@@ -264,6 +294,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     gap: 12,
+  },
+  endModeRow: {
+    padding: 16,
+    gap: 13,
+  },
+  endModeHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  endModeHint: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 17,
+    marginHorizontal: 2,
   },
   iconBox: {
     width: 36,

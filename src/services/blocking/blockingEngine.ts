@@ -35,8 +35,11 @@ async function startFocusSession(params: { tagId: string; apps: string[] }): Pro
   }
 
   const startedAt = Math.floor(Date.now() / 1000);
+  // A missing value intentionally defaults to Brick-only. This prevents upgrades from
+  // silently ending a focus session at the Brick's legacy 50-minute duration.
+  const sessionEndMode = await db.settings.get('session_end_mode');
   const durationMinutes = tag && tag.duration !== 'inf' ? Number(tag.duration) : NaN;
-  const plannedEndTime = Number.isFinite(durationMinutes) && durationMinutes > 0
+  const plannedEndTime = sessionEndMode === 'timer' && Number.isFinite(durationMinutes) && durationMinutes > 0
     ? startedAt + durationMinutes * 60
     : null;
   const sessionId = await db.sessions.startSession({

@@ -58,6 +58,32 @@ describe('blockingEngine', () => {
       }));
     });
 
+    it('defaults to Brick-only even when the Brick has a legacy duration', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(125);
+      (db.tags.getTagById as jest.Mock).mockResolvedValue({ id: 'TAG1', strict: 1, duration: '50' });
+      (db.settings.get as jest.Mock).mockResolvedValue(undefined);
+
+      await blockingEngine.startFocusSession({ tagId: 'TAG1', apps: ['pkg1'] });
+
+      expect(db.sessions.startSession).toHaveBeenCalledWith(expect.objectContaining({ plannedEndTime: null }));
+      expect(BlockingModule.startBlocking).toHaveBeenCalledWith(expect.objectContaining({ plannedEndTime: null }));
+    });
+
+    it('sets a native and database deadline when Time limit is selected', async () => {
+      jest.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(126);
+      (db.tags.getTagById as jest.Mock).mockResolvedValue({ id: 'TAG1', strict: 1, duration: '50' });
+      (db.settings.get as jest.Mock).mockResolvedValue('timer');
+
+      await blockingEngine.startFocusSession({ tagId: 'TAG1', apps: ['pkg1'] });
+
+      expect(db.sessions.startSession).toHaveBeenCalledWith(expect.objectContaining({ plannedEndTime: 1_700_003_000 }));
+      expect(BlockingModule.startBlocking).toHaveBeenCalledWith(expect.objectContaining({ plannedEndTime: 1_700_003_000 }));
+      jest.restoreAllMocks();
+    });
+
     it('rejects a second start before creating another row', async () => {
       (db.sessions.getActiveSession as jest.Mock).mockResolvedValue({ id: 42 });
 

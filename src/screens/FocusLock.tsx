@@ -21,7 +21,7 @@ export function FocusLock() {
   const dotAnim = useRef(new Animated.Value(1)).current;
   const autoEndStarted = useRef(false);
 
-  const [plannedSec, setPlannedSec] = useState<number | null>(50 * 60);
+  const [plannedSec, setPlannedSec] = useState<number | null>(null);
   const [modeName, setModeName] = useState('Deep Work');
 
   useEffect(() => {
@@ -29,21 +29,20 @@ export function FocusLock() {
     const fetchTag = async () => {
       if (activeSession?.plannedEndTime) {
         setPlannedSec(Math.max(1, activeSession.plannedEndTime - activeSession.startTime));
+      } else {
+        // plannedEndTime is the source of truth. A null value means Brick-only,
+        // even when this Brick still has a legacy duration saved on it.
+        setPlannedSec(null);
       }
       if (activeSession?.tagId) {
         const tag = await db.tags.getTagById(activeSession.tagId);
         if (active && tag) {
           setModeName(modeLabel(tag.mode));
-          if (!activeSession.plannedEndTime && tag.duration === 'inf') {
-            setPlannedSec(null);
-          } else if (!activeSession.plannedEndTime) {
-            setPlannedSec((Number(tag.duration) || 50) * 60);
-          }
           return;
         }
       }
       if (active) {
-        setPlannedSec(50 * 60);
+        setPlannedSec(null);
         setModeName('Focus');
       }
     };
@@ -141,7 +140,7 @@ export function FocusLock() {
           <Text style={styles.timer}>{formatClock(elapsed)}</Text>
           <Text style={styles.remaining}>
             {isInf
-              ? `${Math.floor(elapsed / 3600)}h ${Math.floor((elapsed % 3600) / 60)}m elapsed`
+              ? 'Brick required to finish'
               : `${Math.floor(remainingSec / 3600)}h ${Math.floor((remainingSec % 3600) / 60)}m remaining`}
           </Text>
         </RingProgress>
@@ -155,9 +154,11 @@ export function FocusLock() {
       <Text style={styles.tapHint}>Tap your Brick to unlock</Text>
 
       <View style={styles.bottom}>
-        <Button label="End Session" onPress={handleEnd} variant="ghost" icon="stop" iconColor={theme.colors.text} />
+        {!isInf && <Button label="End Session" onPress={handleEnd} variant="ghost" icon="stop" iconColor={theme.colors.text} />}
         <Text style={styles.note}>
-          {activeSession?.strict === 1
+          {isInf
+            ? 'Brick-only mode is on. Tap the same Brick to end this session.'
+            : activeSession?.strict === 1
             ? 'Strict Mode is on. Ending early will break your streak.'
             : 'You can end this session at any time.'}
         </Text>

@@ -9,17 +9,14 @@ import android.content.pm.PackageManager
  *
  * Two independent detectors feed into this: the accessibility service (fast, event driven)
  * and the foreground service's usage-stats poll (fallback, ~2s). Both can fire for the same
- * switch, so this object de-duplicates by package within a short window.
+ * switch, so this object de-duplicates only while an overlay launch is in flight.
  */
 object BlockGuard {
 
-    private const val REPEAT_WINDOW_MS = 3000L
+    private const val LAUNCH_WINDOW_MS = 500L
 
     @Volatile
-    private var lastPackage: String? = null
-
-    @Volatile
-    private var lastAtMs = 0L
+    private var lastLaunchAtMs = 0L
 
     fun handleForegroundPackage(context: Context, pkg: String) {
         val state = StateStore.load() ?: return
@@ -27,14 +24,13 @@ object BlockGuard {
         if (pkg == context.packageName) return
         if (pkg == "com.android.systemui") return
         if (pkg == launcherPackageName(context)) return
+        if (BlockedActivity.isShowing) return
 
         val now = System.currentTimeMillis()
         synchronized(this) {
-            if (pkg == lastPackage && now - lastAtMs < REPEAT_WINDOW_MS) return
-            lastPackage = pkg
-            lastAtMs = now
+            if (now - lastLaunchAtMs < LAUNCH_WINDOW_MS) return
+            lastLaunchAtMs = now
         }
-        if (BlockedActivity.isShowing) return
 
         val label = labelFor(context, pkg)
         // Seconds, to match the unix-second timestamps the JS layer stores everywhere else.
@@ -57,8 +53,7 @@ object BlockGuard {
     /** Called when a session ends so the next session starts with a clean slate. */
     fun reset() {
         synchronized(this) {
-            lastPackage = null
-            lastAtMs = 0L
+            lastLaunchAtMs = 0L
         }
     }
 

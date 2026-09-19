@@ -6,9 +6,12 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -29,15 +32,32 @@ class BlockedActivity : Activity() {
 
         fun dismissAfterUnlock() {
             activeActivity.get()?.runOnUiThread {
-                activeActivity.get()?.finish()
+                activeActivity.get()?.let { activity ->
+                    activity.unlocking = true
+                    activity.finish()
+                }
             }
         }
     }
 
     private var subtitleView: TextView? = null
+    private var leavingForHome = false
+    private var unlocking = false
+    private var backCallback: OnBackInvokedCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isShowing = true
+        activeActivity = WeakReference(this)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback = OnBackInvokedCallback { leaveToHome() }.also { callback ->
+                onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    callback
+                )
+            }
+        }
 
         window.statusBarColor = Color.parseColor("#000000")
         window.navigationBarColor = Color.parseColor("#000000")
@@ -189,8 +209,27 @@ class BlockedActivity : Activity() {
 
     override fun onPause() {
         super.onPause()
+    }
+
+    override fun onStop() {
+        super.onStop()
         isShowing = false
         if (activeActivity.get() === this) activeActivity.clear()
+
+        // If Android backgrounds or finishes this screen without invoking the legacy
+        // Back callback, never reveal the blocked activity underneath it.
+        if (!leavingForHome && !unlocking && !isChangingConfigurations && StateStore.load() != null) {
+            leaveToHome()
+        }
+    }
+
+    override fun onDestroy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+        }
+        if (activeActivity.get() === this) activeActivity.clear()
+        isShowing = false
+        super.onDestroy()
     }
 
     /**
@@ -198,6 +237,8 @@ class BlockedActivity : Activity() {
      * re-triggers the block — an infinite bounce. Send them to the launcher instead.
      */
     private fun leaveToHome() {
+        if (leavingForHome) return
+        leavingForHome = true
         val home = Intent(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
