@@ -12,6 +12,7 @@ import { LOCATIONS, validateBrickName, isTagIdInputValid } from '../utils/onboar
 import { registerBrick } from './registerTagModel';
 import { NfcTag } from '../services/nfc/types';
 import { describeError } from '../utils/describeError';
+import { BrickMark } from '../components/BrickMark';
 
 type Mode = 'unsupported' | 'scanning' | 'detected' | 'naming' | 'manual';
 
@@ -186,12 +187,11 @@ export function RegisterTag() {
         <View style={styles.contentCenter}>
           <View style={styles.scannerBox}>
             <Animated.View style={[styles.pulseRing, { borderColor: colors.accent, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
-            <View style={[styles.scannerInner, { backgroundColor: colors.accent, shadowColor: colors.accent }]}>
-              <Icon name="radio" size={44} color="#fff" />
-            </View>
+            <BrickMark size={98} />
           </View>
-          <Text style={[styles.scanTitle, { color: colors.text }]}>Hold your phone{'\n'}near the Brick</Text>
-          <Text style={[styles.scanSub, { color: colors.muted }]}>Scanning for your tag…</Text>
+          <Text style={[styles.scanTitle, { color: colors.text }]}>Tap your Brick</Text>
+          <Text style={[styles.scanSub, { color: colors.muted }]}>Hold the top of your phone near the Brick.</Text>
+          <Text style={[styles.listening, { color: colors.accent }]}>LISTENING FOR NFC</Text>
         </View>
       </Screen>
     );
@@ -202,11 +202,8 @@ export function RegisterTag() {
       <Screen style={styles.container}>
         <OnboardingHeader />
         <View style={styles.contentCenter}>
-          <View style={[styles.detectedBox, { backgroundColor: colors.accent, shadowColor: colors.accent }]}>
-            <View style={styles.glossyBar} />
-            <Icon name="radio" size={44} color="#fff" />
-          </View>
-          <Text style={styles.eyebrow}>NEW BRICK DETECTED</Text>
+          <BrickMark size={134} />
+          <Text style={[styles.eyebrow, { color: colors.accent }]}>BRICK DETECTED</Text>
           <Text style={[styles.detectedTitle, { color: colors.text }]}>Unregistered Brick</Text>
           <Text style={[styles.idLine, { color: colors.muted }]}>ID · {formatTagId(tagId)}</Text>
         </View>
@@ -298,9 +295,9 @@ export function RegisterTag() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 30,
-    paddingTop: 32,
-    paddingBottom: 34,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
   content: {
     flex: 1,
@@ -321,10 +318,11 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   title: {
+    fontFamily: 'BricolageGrotesque',
     fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1.19,
-    lineHeight: 36,
+    fontWeight: '400',
+    letterSpacing: -1.8,
+    lineHeight: 38,
   },
   body: {
     fontSize: 16,
@@ -334,22 +332,22 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   input: {
     height: 58,
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 20,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '600',
   },
   hint: {
     fontSize: 14,
@@ -382,17 +380,21 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   scanTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    letterSpacing: -0.78,
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 32,
+    fontWeight: '400',
+    letterSpacing: -1.5,
     textAlign: 'center',
     lineHeight: 32,
     marginBottom: 12,
   },
   scanSub: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '400',
+    textAlign: 'center',
+    maxWidth: 260,
   },
+  listening: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.6, marginTop: 20 },
   detectedBox: {
     width: 134,
     height: 134,
@@ -415,20 +417,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
   },
   eyebrow: {
+    fontFamily: 'IBMPlexMono-Medium',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '500',
     letterSpacing: 1.76,
-    color: '#22c55e',
+    marginTop: 34,
     marginBottom: 12,
   },
   detectedTitle: {
-    fontSize: 26,
-    fontWeight: '800',
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 28,
+    fontWeight: '400',
     marginBottom: 8,
   },
   idLine: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: 'IBMPlexMono-Regular',
+    fontSize: 12,
     fontVariant: ['tabular-nums'],
   },
   buttonGroup: {
@@ -461,8 +465,10 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   namingTitle: {
-    fontSize: 27,
-    fontWeight: '800',
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 30,
+    fontWeight: '400',
+    letterSpacing: -1.4,
     marginBottom: 12,
   },
   namingSub: {

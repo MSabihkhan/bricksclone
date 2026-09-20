@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Screen } from '../components/Screen';
-import { Icon } from '../components/Icon';
 import { useTheme } from '../theme/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { completeOnboarding } from '../state/onboarding';
+import { BrickMark } from '../components/BrickMark';
 
 export function OnboardingDone() {
   const { colors } = useTheme();
@@ -23,9 +23,7 @@ export function OnboardingDone() {
   return (
     <Screen style={styles.container}>
       <View style={styles.content}>
-        <View style={[styles.iconBox, { shadowColor: '#22c55e' }]}>
-          <Icon name="check" size={46} color="#fff" />
-        </View>
+        <BrickMark size={104} />
         <Text style={[styles.title, { color: colors.text }]}>You're all set</Text>
         <Text style={[styles.body, { color: colors.muted }]}>
           Tap your Brick to start your first focus session.
@@ -44,9 +42,9 @@ export function OnboardingDone() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 30,
-    paddingTop: 32,
-    paddingBottom: 34,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
   content: {
     flex: 1,
@@ -67,27 +65,30 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 32,
+    fontWeight: '400',
+    letterSpacing: -1.5,
+    marginTop: 36,
     marginBottom: 16,
     textAlign: 'center',
   },
   body: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '400',
     textAlign: 'center',
     lineHeight: 24,
     paddingHorizontal: 20,
   },
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

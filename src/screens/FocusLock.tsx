@@ -1,78 +1,51 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, BackHandler, Alert } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 import { Theme } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
 import { useFocusStore } from '../state/useFocusStore';
 import { Icon } from '../components/Icon';
-import { RingProgress } from '../components/RingProgress';
+import { BrickMark } from '../components/BrickMark';
 import { Button } from '../components/Button';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
 import { db } from '../db';
 import { modeLabel } from '../utils/onboarding';
+import { BlockingModule } from '../native/BlockingModule';
 
 export function FocusLock() {
   const theme = useTheme();
-  const styles = React.useMemo(() => makeStyles(theme), [theme]);
-  const { timerTick, activeSession, liveBlocked, endSession, enforcementHealth, refreshEnforcementHealth } = useFocusStore();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const dotAnim = useRef(new Animated.Value(1)).current;
+  const { timerTick, activeSession, endSession, enforcementHealth, refreshEnforcementHealth } = useFocusStore();
   const autoEndStarted = useRef(false);
-
   const [plannedSec, setPlannedSec] = useState<number | null>(null);
-  const [modeName, setModeName] = useState('Deep Work');
+  const [modeName, setModeName] = useState('Focus');
+  const [brickName, setBrickName] = useState('Brick');
+  const [appLabels, setAppLabels] = useState<string[]>([]);
 
   useEffect(() => {
-    let active = true;
-    const fetchTag = async () => {
-      if (activeSession?.plannedEndTime) {
-        setPlannedSec(Math.max(1, activeSession.plannedEndTime - activeSession.startTime));
-      } else {
-        // plannedEndTime is the source of truth. A null value means Brick-only,
-        // even when this Brick still has a legacy duration saved on it.
-        setPlannedSec(null);
+    let mounted = true;
+    Promise.all([
+      activeSession?.tagId ? db.tags.getTagById(activeSession.tagId) : Promise.resolve(undefined),
+      db.blockedApps.listBlockedApps(),
+    ]).then(([tag, apps]) => {
+      if (!mounted) return;
+      setPlannedSec(activeSession?.plannedEndTime ? Math.max(1, activeSession.plannedEndTime - activeSession.startTime) : null);
+      if (tag) {
+        setModeName(modeLabel(tag.mode));
+        setBrickName(tag.name);
       }
-      if (activeSession?.tagId) {
-        const tag = await db.tags.getTagById(activeSession.tagId);
-        if (active && tag) {
-          setModeName(modeLabel(tag.mode));
-          return;
-        }
-      }
-      if (active) {
-        setPlannedSec(null);
-        setModeName('Focus');
-      }
-    };
-    fetchTag();
-    return () => { active = false; };
-  }, [activeSession?.plannedEndTime, activeSession?.startTime, activeSession?.tagId]);
+      const labels = new Map(apps.map(app => [app.packageName, app.label]));
+      setAppLabels((activeSession?.apps ?? []).map(pkg => labels.get(pkg) ?? pkg.split('.').pop() ?? pkg));
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [activeSession]);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 2600, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ])
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(dotAnim, { toValue: 0.25, duration: 650, useNativeDriver: true }),
-        Animated.timing(dotAnim, { toValue: 1, duration: 650, useNativeDriver: true }),
-      ])
-    ).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => backHandler.remove();
   }, []);
-
-  useEffect(() => {
-    if (activeSession?.strict === 1) {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
-      return () => backHandler.remove();
-    }
-  }, [activeSession?.strict]);
 
   useEffect(() => {
     refreshEnforcementHealth().catch(() => {});
@@ -80,205 +53,118 @@ export function FocusLock() {
     return () => clearInterval(id);
   }, [refreshEnforcementHealth]);
 
-  // timerTick only drives the re-render; the value itself always comes from the wall clock
-  // so the display survives the app being backgrounded, killed, or the store rehydrating.
   const elapsed = activeSession ? Math.max(0, Math.floor(Date.now() / 1000) - activeSession.startTime + timerTick * 0) : 0;
-  const isInf = plannedSec === null;
-  const progress = isInf ? 0 : Math.min(elapsed / (plannedSec || 1), 1);
-  const remainingSec = isInf ? 0 : Math.max((plannedSec || 0) - elapsed, 0);
+  const isBrickOnly = plannedSec === null;
+  const remaining = isBrickOnly ? 0 : Math.max((plannedSec ?? 0) - elapsed, 0);
+  const progress = isBrickOnly ? 0 : Math.min(elapsed / Math.max(1, plannedSec ?? 1), 1);
 
   useEffect(() => {
-    if (isInf || remainingSec > 0 || !activeSession || autoEndStarted.current) return;
+    if (isBrickOnly || remaining > 0 || !activeSession || autoEndStarted.current) return;
     autoEndStarted.current = true;
-    endSession('timer').catch((error) => {
+    endSession('timer').catch(error => {
       autoEndStarted.current = false;
       Alert.alert('Could not finish the session', error instanceof Error ? error.message : String(error));
     });
-  }, [activeSession, endSession, isInf, remainingSec]);
+  }, [activeSession, endSession, isBrickOnly, remaining]);
 
-  const formatClock = (sec: number) => {
-    const h = Math.floor(sec / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
-    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  const formatClock = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const handleEnd = () => {
-    if (activeSession?.strict === 1) {
-      navigation.navigate('ModalStack', { screen: 'EmergencyOverride' });
-    } else {
-      endSession('override').catch((error) => {
-        Alert.alert('Could not finish the session', error instanceof Error ? error.message : String(error));
-      });
-    }
-  };
-
-  const rScale = pulseAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 1.12, 1] });
-  const rOp = pulseAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.5, 0, 0.5] });
+  const endEarly = () => navigation.navigate('ModalStack', { screen: 'EmergencyOverride' });
 
   return (
     <View style={styles.container}>
-      <View style={styles.glow} />
-
-      <View style={styles.header}>
-        <Icon name="lock" size={15} color={theme.colors.accent} />
-        <Text style={styles.headerText}>FOCUS LOCKED</Text>
+      <View style={styles.topRow}>
+        <View style={styles.identity}>
+          <Icon name="lock" size={13} color={theme.colors.text} />
+          <Text style={styles.identityText}>{modeName}</Text>
+        </View>
+        <View style={styles.identity}>
+          <BrickMark size={28} />
+          <Text style={styles.identityText}>{brickName}</Text>
+        </View>
       </View>
 
       {enforcementHealth === 'degraded' && (
-        <View style={styles.healthWarning} accessibilityRole="alert">
-          <Icon name="shield" size={16} color={theme.colors.text} />
-          <Text style={styles.healthWarningText}>Protection needs attention. Re-enable Usage Access or Accessibility.</Text>
+        <View style={styles.warning} accessibilityRole="alert">
+          <View style={styles.warningTitleRow}>
+            <Icon name="info" size={17} color={theme.colors.text} />
+            <Text style={styles.warningTitle}>Blocking has stopped</Text>
+          </View>
+          <Text style={styles.warningText}>Accessibility or usage access was switched off, so blocked apps can open. Your session is still running.</Text>
+          <Button label="Turn it back on" onPress={() => BlockingModule.requestAccessibility().catch(() => {})} />
         </View>
       )}
 
-      <View style={styles.center}>
-        <Animated.View style={[styles.pulseRing, { transform: [{ scale: rScale }], opacity: rOp }]} />
-        <RingProgress size={230} stroke={6} color={theme.colors.accent} trackColor={theme.colors.track} progress={progress}>
-          <Text style={styles.deepWork}>{modeName.toUpperCase()}</Text>
-          <Text style={styles.timer}>{formatClock(elapsed)}</Text>
-          <Text style={styles.remaining}>
-            {isInf
-              ? 'Brick required to finish'
-              : `${Math.floor(remainingSec / 3600)}h ${Math.floor((remainingSec % 3600) / 60)}m remaining`}
-          </Text>
-        </RingProgress>
+      <View style={styles.timerArea}>
+        <Text style={styles.timer}>{formatClock(isBrickOnly ? elapsed : remaining)}</Text>
+        <Text style={styles.timerCaption}>{isBrickOnly ? 'Elapsed · ends with Brick' : 'Remaining'}</Text>
+        {!isBrickOnly && (
+          <>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            </View>
+            <View style={styles.progressLabels}>
+              <Text style={styles.dataLabel}>{formatClock(elapsed)} IN</Text>
+              <Text style={styles.dataLabel}>{formatClock(plannedSec ?? 0)}</Text>
+            </View>
+          </>
+        )}
       </View>
 
-      <View style={styles.pill}>
-        <Animated.View style={[styles.dot, { opacity: dotAnim }]} />
-        <Text style={styles.pillText}>{liveBlocked} distractions blocked</Text>
+      <View style={styles.appsArea}>
+        <Text style={styles.sectionTitle}>Held closed</Text>
+        <View style={styles.chips}>
+          {appLabels.map(label => <View key={label} style={styles.chip}><Text style={styles.chipText}>{label}</Text></View>)}
+          {appLabels.length === 0 && <Text style={styles.emptyText}>No apps selected</Text>}
+        </View>
       </View>
-
-      <Text style={styles.tapHint}>Tap your Brick to unlock</Text>
 
       <View style={styles.bottom}>
-        {!isInf && <Button label="End Session" onPress={handleEnd} variant="ghost" icon="stop" iconColor={theme.colors.text} />}
-        <Text style={styles.note}>
-          {isInf
-            ? 'Brick-only mode is on. Tap the same Brick to end this session.'
-            : activeSession?.strict === 1
-            ? 'Strict Mode is on. Ending early will break your streak.'
-            : 'You can end this session at any time.'}
-        </Text>
+        <View style={styles.brickAction}>
+          <Icon name="radio" size={18} color={theme.colors.text} />
+          <Text style={styles.brickActionText}>Tap {brickName} to finish</Text>
+        </View>
+        {!isBrickOnly && (
+          <Pressable accessibilityRole="button" onPress={endEarly} style={styles.endEarly}>
+            <Text style={styles.endEarlyText}>End early</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
-  container: {
-    ...(StyleSheet.absoluteFill as object),
-    backgroundColor: theme.colors.bg,
-    alignItems: 'center',
-    paddingTop: 88,
-    paddingBottom: 40,
-    paddingHorizontal: 30,
-    zIndex: 10,
-  },
-  glow: {
-    ...(StyleSheet.absoluteFill as object),
-    backgroundColor: theme.colors.accent,
-    opacity: 0.16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-    marginTop: 'auto',
-    marginBottom: 'auto',
-  },
-  headerText: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 2.4,
-    color: theme.colors.accent,
-  },
-  healthWarning: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: theme.colors.accentSoft,
-    marginBottom: 18,
-  },
-  healthWarningText: { flex: 1, color: theme.colors.text, fontSize: 12, fontWeight: '600' },
-  center: {
-    position: 'relative',
-    width: 230,
-    height: 230,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pulseRing: {
-    position: 'absolute',
-    top: 14, left: 14, right: 14, bottom: 14,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: theme.colors.accent,
-  },
-  deepWork: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.54,
-    color: theme.colors.muted,
-  },
-  timer: {
-    fontSize: 52,
-    fontWeight: '800',
-    letterSpacing: -2.08,
-    color: theme.colors.text,
-    lineHeight: 52,
-    marginTop: 6,
-    fontVariant: ['tabular-nums'],
-  },
-  remaining: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.muted,
-    marginTop: 6,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-    backgroundColor: theme.colors.card,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 99,
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    marginTop: 34,
-  },
-  dot: {
-    width: 8, height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.accent,
-  },
-  pillText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  tapHint: {
-    marginTop: 16,
-    fontSize: 13,
-    fontWeight: '700',
-    color: theme.colors.muted,
-    letterSpacing: 0.2,
-  },
-  bottom: {
-    marginTop: 'auto',
-    width: '100%',
-  },
-  note: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: theme.colors.faint,
-    fontWeight: '600',
-    marginTop: 14,
-  }
+  container: { flex: 1, backgroundColor: theme.colors.bg, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 16 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  identityText: { color: theme.colors.text, fontSize: 14, fontWeight: '500' },
+  warning: { backgroundColor: theme.mode === 'dark' ? '#332919' : '#FFF4DD', borderColor: theme.mode === 'dark' ? '#5A4723' : '#E9D6AC', borderWidth: 1, borderRadius: 20, padding: 16, gap: 12, marginTop: 12 },
+  warningTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  warningTitle: { color: theme.mode === 'dark' ? '#F1CB78' : '#6D531B', fontFamily: 'BricolageGrotesque', fontSize: 21, letterSpacing: -0.7 },
+  warningText: { color: theme.mode === 'dark' ? '#D5B872' : '#7B642E', fontSize: 13, lineHeight: 19 },
+  timerArea: { marginTop: 48 },
+  timer: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 46, letterSpacing: -2 },
+  timerCaption: { color: theme.colors.text, fontSize: 14, marginTop: 10 },
+  progressTrack: { height: 4, borderRadius: 2, backgroundColor: theme.colors.track, overflow: 'hidden', marginTop: 30 },
+  progressFill: { height: 4, backgroundColor: theme.colors.accent, borderRadius: 2 },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  dataLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11 },
+  appsArea: { marginTop: 44 },
+  sectionTitle: { color: theme.colors.text, fontSize: 14, marginBottom: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  chip: { backgroundColor: theme.colors.card2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
+  chipText: { color: theme.colors.text, fontSize: 12 },
+  emptyText: { color: theme.colors.muted, fontSize: 13 },
+  bottom: { marginTop: 'auto', gap: 8 },
+  brickAction: { height: 56, borderRadius: 17, borderWidth: 1, borderColor: theme.colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  brickActionText: { color: theme.colors.text, fontSize: 14, fontWeight: '600' },
+  endEarly: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  endEarlyText: { color: theme.colors.muted, fontSize: 13 },
 });

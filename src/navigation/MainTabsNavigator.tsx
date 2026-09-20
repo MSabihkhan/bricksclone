@@ -35,8 +35,8 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
     Animated.spring(anim, {
       toValue: state.index,
       useNativeDriver: true,
-      damping: 20,
-      stiffness: 250,
+      damping: 28,
+      stiffness: 360,
     }).start();
   }, [state.index, anim]);
 
@@ -54,7 +54,7 @@ function CustomTabBar({ state, navigation }: BottomTabBarProps) {
           { width: tabWidth, transform: [{ translateX }] },
         ]}
       >
-        <View style={styles.indicatorBar} />
+        <View style={[styles.indicatorBar, { backgroundColor: theme.colors.accent }]} />
       </Animated.View>
 
       {state.routes.map((route, index) => {
@@ -111,11 +111,11 @@ export function MainTabsNavigator() {
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
   container: {
-    height: 80,
+    height: 76,
     backgroundColor: theme.colors.card,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    paddingBottom: 16,
+    paddingBottom: 10,
     flexDirection: 'row',
   },
   tab: {
@@ -126,17 +126,16 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   indicator: {
     position: 'absolute',
     top: 0,
-    height: 3,
+    height: 2,
     alignItems: 'center',
   },
   indicatorBar: {
-    width: '100%',
-    height: 3,
-    backgroundColor: theme.colors.accent,
+    width: 30,
+    height: 2,
   },
   label: {
     fontSize: 11,
-    fontWeight: '700',
-    marginTop: 5,
+    fontWeight: '500',
+    marginTop: 4,
   },
 });

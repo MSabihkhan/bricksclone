@@ -17,10 +17,10 @@ export function Button({ label, onPress, variant = 'primary', disabled = false, 
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
+    Animated.timing(scale, { toValue: 0.985, duration: 120, useNativeDriver: true }).start();
   };
   const handlePressOut = () => {
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true }).start();
+    Animated.timing(scale, { toValue: 1, duration: 120, useNativeDriver: true }).start();
   };
 
   const getVariantStyles = (): { container: ViewStyle; text: TextStyle } => {
@@ -37,9 +37,9 @@ export function Button({ label, onPress, variant = 'primary', disabled = false, 
             backgroundColor: theme.colors.accent,
             shadowColor: theme.colors.accent,
             shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.55,
-            shadowRadius: 30,
-            elevation: 8,
+            shadowOpacity: 0.18,
+            shadowRadius: 20,
+            elevation: 4,
           },
           text: { color: '#fff' },
         };
@@ -85,8 +85,8 @@ export function Button({ label, onPress, variant = 'primary', disabled = false, 
 
 const styles = StyleSheet.create({
   container: {
-    height: 54,
-    borderRadius: 16,
+    height: 56,
+    borderRadius: 17,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -95,6 +95,6 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

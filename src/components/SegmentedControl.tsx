@@ -33,12 +33,12 @@ export function SegmentedControl({ options, value, onChange, width = '100%' }: S
   };
 
   return (
-    <View style={[styles.container, { width, backgroundColor: theme.colors.card, borderColor: theme.colors.border }]} onLayout={onLayout}>
+    <View style={[styles.container, { width, backgroundColor: theme.colors.card2 }]} onLayout={onLayout}>
       {containerWidth > 0 && (
         <Animated.View
           style={[
             styles.indicator,
-            { width: segmentWidth, transform: [{ translateX: anim }], backgroundColor: theme.colors.accent },
+            { width: Math.max(0, segmentWidth - 3), transform: [{ translateX: anim }], backgroundColor: theme.colors.accent },
           ]}
         />
       )}
@@ -66,17 +66,16 @@ export function SegmentedControl({ options, value, onChange, width = '100%' }: S
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    borderRadius: 15,
-    borderWidth: 1,
+    borderRadius: 13,
     padding: 3,
-    height: 38,
+    height: 42,
   },
   indicator: {
     position: 'absolute',
     top: 3,
     bottom: 3,
     left: 3,
-    borderRadius: 11,
+    borderRadius: 10,
   },
   segment: {
     flex: 1,
@@ -85,13 +84,14 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   label: {
-    fontSize: 13,
+    fontFamily: 'IBMPlexMono-Regular',
+    fontSize: 12,
   },
   labelActive: {
     color: '#fff',
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   labelInactive: {
-    fontWeight: '600',
+    fontWeight: '400',
   },
 });

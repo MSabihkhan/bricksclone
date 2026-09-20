@@ -19,9 +19,9 @@ export function Card({ radius = 22, padding = 20, elevation = 0, style, children
           borderColor: theme.colors.border,
           borderRadius: radius,
           padding,
-          shadowOpacity: elevation ? 0.2 : 0,
-          shadowRadius: elevation,
-          elevation: elevation,
+          shadowOpacity: elevation ? 0.14 : 0,
+          shadowRadius: elevation ? 18 : 0,
+          elevation: elevation ? 4 : 0,
         },
         style,
       ]}
@@ -36,6 +36,6 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
   },
 });

@@ -1,121 +1,76 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated, Pressable, Alert, AppState } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen } from '../components/Screen';
-import { SectionHeader } from '../components/SectionHeader';
-import { RingProgress } from '../components/RingProgress';
 import { Button } from '../components/Button';
-import { Icon, IconName } from '../components/Icon';
+import { BrickMark } from '../components/BrickMark';
+import { Icon } from '../components/Icon';
 import { Theme } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
 import { useFocusStore } from '../state/useFocusStore';
 import { FocusLock } from './FocusLock';
 import { db } from '../db';
-import type { Tag, BlockedAttempt } from '../db/types';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { Tag } from '../db/types';
 import { HomeStackParamList } from '../navigation/types';
-import { getTodayStats, TodayStats } from '../services/stats/statsService';
+import { getFocusBars, getTodayStats, TodayStats } from '../services/stats/statsService';
+import type { BarDatum } from '../services/stats/statsService';
 import { useNfcSessionStart } from '../hooks/useNfcSessionStart';
-import { modeLabel } from '../utils/onboarding';
-import { formatToday, greetingFor, initialsFor, relativeTime } from './homeHeaderModel';
+import { durationLabel, modeLabel } from '../utils/onboarding';
+import { formatToday } from './homeHeaderModel';
 
-const locIcon: Record<string, IconName> = {
-  desk: 'monitor',
-  bedroom: 'bed',
-  office: 'building',
-  kitchen: 'coffee',
-  studio: 'music',
-  car: 'car',
-};
+type Nav = NativeStackNavigationProp<HomeStackParamList>;
+
+function formatFocused(sec: number) {
+  const hours = Math.floor(sec / 3600);
+  const minutes = Math.floor((sec % 3600) / 60);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`;
+}
 
 export function Home() {
   const theme = useTheme();
-  const styles = React.useMemo(() => makeStyles(theme), [theme]);
-  const { machine, starting, todayFocusSec, hydrate, startSession, endSession, liveBlocked } = useFocusStore();
-  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const navigation = useNavigation<Nav>();
+  const { machine, starting, todayFocusSec, hydrate, startSession, endSession } = useFocusStore();
   const [tags, setTags] = useState<Tag[]>([]);
-  const [activeAppsCount, setActiveAppsCount] = useState(0);
-  const [activity, setActivity] = useState<BlockedAttempt[]>([]);
-  const [userName, setUserName] = useState('');
-
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [appsCount, setAppsCount] = useState(0);
   const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
-  const [todaySessionsCount, setTodaySessionsCount] = useState(0);
-
-  const dotAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    hydrate();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(dotAnim, { toValue: 0.25, duration: 700, useNativeDriver: true }),
-        Animated.timing(dotAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ])
-    ).start();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [weekBars, setWeekBars] = useState<BarDatum[]>([]);
+  const [todaySessions, setTodaySessions] = useState(0);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') hydrate().catch(() => {});
+    hydrate().catch(() => {});
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active') hydrate().catch(() => {});
     });
     return () => subscription.remove();
   }, [hydrate]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      const load = async () => {
-        const stats = await getTodayStats();
-        const t = await db.tags.listTags();
-        const apps = await db.blockedApps.listBlockedApps();
-        const name = await db.settings.get('user_name');
+  useFocusEffect(useCallback(() => {
+    let mounted = true;
+    Promise.all([
+      db.tags.listTags(),
+      db.blockedApps.listBlockedApps(),
+      getTodayStats(),
+      getFocusBars('week'),
+    ]).then(async ([savedTags, apps, stats, bars]) => {
+      const now = Math.floor(Date.now() / 1000);
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const sessions = await db.sessions.sessionsBetween(Math.floor(start.getTime() / 1000), now);
+      if (!mounted) return;
+      setTags(savedTags);
+      setSelectedId(current => current && savedTags.some(tag => tag.id === current) ? current : savedTags[0]?.id ?? null);
+      setAppsCount(apps.length);
+      setTodayStats(stats);
+      setWeekBars(bars);
+      setTodaySessions(sessions.length);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, []));
 
-        const now = Math.floor(Date.now() / 1000);
-        const d = new Date(now * 1000);
-        d.setHours(0, 0, 0, 0);
-        const start = Math.floor(d.getTime() / 1000);
-        const sessions = await db.sessions.sessionsBetween(start, now);
-
-        // Live Activity mirrors the most recent session, running or finished.
-        const latest = sessions[0];
-        const attempts = latest ? await db.blockedAttempts.attemptsForSession(latest.id) : [];
-
-        if (active) {
-          setTodayStats(stats);
-          setTags(t);
-          setActiveAppsCount(apps.length);
-          setTodaySessionsCount(sessions.length);
-          setActivity(attempts.slice(0, 5));
-          setUserName(name || '');
-          if (stats) {
-            useFocusStore.setState({ liveBlocked: Math.max(useFocusStore.getState().liveBlocked, stats.blocked) });
-          }
-        }
-      };
-      load();
-      return () => { active = false; };
-    }, [])
-  );
-
-  const beginSession = async (tagId: string) => {
-    try {
-      await startSession(tagId);
-    } catch (error) {
-      Alert.alert('Could not start focus', error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  const onStartFocus = () => {
-    if (tags.length > 0) {
-      beginSession(tags[0].id);
-    } else {
-      navigation.navigate('AddBrick');
-    }
-  };
-
-  const handleRegistered = useCallback(async (tagId: string) => {
-    if (useFocusStore.getState().machine === 'active') return;
+  const beginSession = useCallback(async (tagId: string) => {
     try {
       await startSession(tagId);
     } catch (error) {
@@ -123,205 +78,115 @@ export function Home() {
     }
   }, [startSession]);
 
-  const handleUnregistered = useCallback(() => {
-    if (useFocusStore.getState().machine === 'active') return;
-    navigation.navigate('AddBrick');
-  }, [navigation]);
-
-  // Tapping the same Brick again is the only non-penalised way out of a session.
-  const handleEndTap = useCallback(async () => {
-    if (useFocusStore.getState().machine !== 'active') return;
-    await endSession('nfc');
-  }, [endSession]);
+  const handleRegistered = useCallback(async (tagId: string) => {
+    if (useFocusStore.getState().machine !== 'active') await beginSession(tagId);
+  }, [beginSession]);
 
   useNfcSessionStart({
     onRegistered: handleRegistered,
-    onUnregistered: handleUnregistered,
-    onEndTap: handleEndTap,
-    registeredTagIds: tags.map(t => t.id)
+    onUnregistered: () => navigation.navigate('AddBrick'),
+    onEndTap: () => endSession('nfc'),
+    registeredTagIds: tags.map(tag => tag.id),
   });
 
-  if (machine === 'active') {
-    return <FocusLock />;
-  }
+  if (machine === 'active') return <FocusLock />;
 
-  const focusSec = todayStats ? todayStats.focusSec : todayFocusSec;
-  const goalSec = todayStats ? todayStats.goalSec : 210 * 60;
-
-  const h = Math.floor(focusSec / 3600);
-  const m = Math.floor((focusSec % 3600) / 60);
-  const goalH = Math.floor(goalSec / 3600);
-  const goalM = Math.floor((goalSec % 3600) / 60);
-
-  const goalPct = goalSec > 0 ? Math.min(focusSec / goalSec, 1) : 0;
-  const goalPctStr = `${Math.floor(goalPct * 100)}%`;
-
-  const now = new Date();
-  const nowSec = Math.floor(now.getTime() / 1000);
-  const greeting = userName ? `${greetingFor(now)}, ${userName}` : greetingFor(now);
+  const selected = tags.find(tag => tag.id === selectedId) ?? tags[0];
+  const focusSec = todayStats?.focusSec ?? todayFocusSec;
+  const visibleBars = weekBars.slice(-7);
+  const maxBar = Math.max(1, ...visibleBars.map(bar => bar.value));
 
   return (
-    <Screen style={{ paddingHorizontal: 0 }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}>
-
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.dateLine}>{formatToday(now)}</Text>
-            <Text style={styles.greeting}>{greeting}</Text>
-          </View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initialsFor(userName)}</Text>
-          </View>
+    <Screen style={styles.screen}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <View style={styles.header}>
+          <Text style={styles.date}>{formatToday(new Date())}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open settings" hitSlop={12} onPress={() => navigation.getParent()?.navigate('SettingsTab' as never)} style={styles.headerButton}>
+            <Icon name="settings" size={21} color={theme.colors.text} />
+          </Pressable>
         </View>
 
-        <View style={styles.heroCard}>
-          <View style={styles.heroTop}>
-            <Text style={styles.heroEyebrow}>FOCUS TODAY</Text>
-            {todayStats && todayStats.streakDays > 0 ? (
-              <View style={[styles.activePill, { backgroundColor: theme.colors.card2 }]}>
-                <Icon name="flame" size={14} color={theme.colors.accent} />
-                <Text style={styles.activePillText}>{todayStats.streakDays}-day streak</Text>
-              </View>
-            ) : (
-              <View style={styles.activePill}>
-                <Animated.View style={[styles.liveDot, { opacity: dotAnim }]} />
-                <Text style={styles.activePillText}>{activeAppsCount} apps blocked</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.heroBody}>
-            <View style={styles.heroRing}>
-              <RingProgress size={98} stroke={9} color={theme.colors.accent} trackColor={theme.colors.track} progress={goalPct}>
-                <Text style={styles.heroRingPct}>{goalPctStr}</Text>
-                <Text style={styles.heroRingOf}>OF GOAL</Text>
-              </RingProgress>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroTime}>{h}h {m}m</Text>
-              <Text style={styles.heroGoal}>{h}h {m}m of {goalH}h {goalM > 0 ? `${goalM}m ` : ''}goal</Text>
-            </View>
-          </View>
-          <Button label={starting ? 'Starting…' : 'Start Focus Session'} icon="play" onPress={onStartFocus} disabled={starting} />
-        </View>
-
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricCard}>
-            <View style={styles.metricIconBox}><Icon name="clock" size={18} color={theme.colors.blue} /></View>
-            <View>
-              <Text style={styles.metricVal}>{todaySessionsCount}</Text>
-              <Text style={styles.metricLabel}>Sessions</Text>
-            </View>
-          </View>
-          <View style={styles.metricCard}>
-            <View style={styles.metricIconBox}><Icon name="shield" size={18} color={theme.colors.accent} /></View>
-            <View>
-              <Text style={styles.metricVal}>{liveBlocked}</Text>
-              <Text style={styles.metricLabel}>Blocked</Text>
-            </View>
-          </View>
-        </View>
-
-        <SectionHeader title="My Bricks" right="Tap a Brick to focus" />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 11 }}>
-          {tags.map((tag) => {
-            const iconName = locIcon[tag.location || 'desk'] || 'grid';
+        <Text style={styles.sectionLabel}>Next session</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeRail} style={styles.modeRailOuter}>
+          {tags.map(tag => {
+            const active = tag.id === selected?.id;
             return (
-              <Pressable key={tag.id} style={styles.brickCard} disabled={starting} accessibilityRole="button" accessibilityLabel={`Start ${tag.name} focus session`} onPress={() => beginSession(tag.id)}>
-                <View style={styles.brickCardTop}>
-                  <View style={styles.brickIconBox}>
-                    <Icon name={iconName} size={20} color={theme.colors.accent} />
-                  </View>
-                  <View style={styles.brickDot} />
-                </View>
+              <Pressable key={tag.id} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`Select ${modeLabel(tag.mode)}`} onPress={() => setSelectedId(tag.id)} style={({ pressed }) => [styles.modeCard, active && styles.modeCardActive, pressed && styles.pressed]}>
+                <BrickMark size={38} style={active ? styles.activeMark : undefined} />
                 <View>
-                  <Text style={styles.brickName}>{tag.name}</Text>
-                  <Text style={styles.brickMeta}>{modeLabel(tag.mode)} · {activeAppsCount} global apps</Text>
+                  <Text style={[styles.modeName, active && styles.modeActiveText]}>{modeLabel(tag.mode)}</Text>
+                  <Text style={[styles.modeMeta, active && styles.modeActiveText]}>{durationLabel(tag.duration).toUpperCase()}</Text>
+                  <Text style={[styles.modeMeta, active && styles.modeActiveText]}>{appsCount} APPS BLOCKED</Text>
                 </View>
               </Pressable>
             );
           })}
-          <Pressable style={styles.addBrickCard} onPress={() => navigation.navigate('AddBrick')}>
-            <View style={styles.brickIconBox}>
-              <Icon name="plus" size={20} color={theme.colors.accent} />
-            </View>
-            <View>
-              <Text style={styles.brickName}>Add a Brick</Text>
-              <Text style={styles.brickMeta}>Tap to scan a new tag</Text>
-            </View>
-          </Pressable>
+          {tags.length === 0 && (
+            <Pressable style={styles.emptyMode} onPress={() => navigation.navigate('AddBrick')}>
+              <BrickMark size={38} />
+              <Text style={styles.emptyModeTitle}>Connect your first Brick</Text>
+            </Pressable>
+          )}
         </ScrollView>
 
-        <SectionHeader title="Live Activity" right={<View style={styles.livePill}><Animated.View style={[styles.livePillDot, { opacity: dotAnim }]} /><Text style={styles.livePillText}>Live</Text></View>} />
-        <View style={styles.activityCard}>
-          {activity.length === 0 ? (
-            <View style={styles.activityRow}>
-              <Text style={styles.activityEmpty}>No blocked attempts yet today.</Text>
-            </View>
-          ) : (
-            activity.map((a) => (
-              <View key={a.id} style={styles.activityRow}>
-                <View style={styles.activityIconBox}>
-                  <Icon name="shield" size={16} color={theme.colors.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityTitle} numberOfLines={1}>{a.label}</Text>
-                  <Text style={styles.activitySub}>Blocked</Text>
-                </View>
-                <Text style={styles.activityTime}>{relativeTime(a.createdAt, nowSec)}</Text>
-              </View>
-            ))
-          )}
+        <Button label={selected ? (starting ? 'Starting…' : `Start ${modeLabel(selected.mode)}`) : 'Connect a Brick'} onPress={() => selected ? beginSession(selected.id) : navigation.navigate('AddBrick')} disabled={starting} />
+        <View style={styles.tapHint}>
+          <Icon name="radio" size={15} color={theme.colors.muted} />
+          <Text style={styles.tapHintText}>{selected ? `or tap ${selected.name}` : 'or tap an unregistered Brick'}</Text>
         </View>
 
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryTop}>
+            <View>
+              <Text style={styles.summaryValue}>{formatFocused(focusSec)}</Text>
+              <Text style={styles.summaryLabel}>FOCUSED TODAY · {todaySessions} {todaySessions === 1 ? 'SESSION' : 'SESSIONS'}</Text>
+            </View>
+            <Text style={styles.summaryPeriod}>Week</Text>
+          </View>
+          <View style={styles.bars}>
+            {visibleBars.map((bar, index) => (
+              <View key={`${bar.label}-${index}`} style={[styles.bar, { height: 8 + Math.round((bar.value / maxBar) * 22) }, index === visibleBars.length - 1 && styles.barToday]} />
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.statusRow}>
+          <Icon name="lock" size={14} color={theme.colors.faint} />
+          <Text style={styles.statusText}>Nothing blocked right now</Text>
+        </View>
       </ScrollView>
     </Screen>
   );
 }
 
 const makeStyles = (theme: Theme) => StyleSheet.create({
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 22 },
-  dateLine: { fontSize: 13, color: theme.colors.muted, fontWeight: '600' },
-  greeting: { fontSize: 25, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.75, marginTop: 3 },
-  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: theme.colors.card2, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: theme.colors.text, fontWeight: '800', fontSize: 15, letterSpacing: 0.3 },
-
-  heroCard: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 24, padding: 22, paddingBottom: 24 },
-  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  heroEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.76, color: theme.colors.muted },
-  activePill: { backgroundColor: theme.colors.card2, borderRadius: 99, paddingVertical: 5, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.green },
-  activePillText: { fontSize: 12, fontWeight: '700', color: theme.colors.text },
-  heroBody: { flexDirection: 'row', alignItems: 'center', gap: 22, marginBottom: 20 },
-  heroRing: { position: 'relative', width: 98, height: 98 },
-  heroRingPct: { fontSize: 19, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.38 },
-  heroRingOf: { fontSize: 9, color: theme.colors.muted, fontWeight: '700', letterSpacing: 0.72 },
-  heroTime: { fontSize: 40, fontWeight: '800', letterSpacing: -1.6, color: theme.colors.text, fontVariant: ['tabular-nums'] },
-  heroGoal: { fontSize: 13, color: theme.colors.muted, fontWeight: '600', marginTop: 8 },
-
-  metricsGrid: { flexDirection: 'row', gap: 11, marginTop: 14 },
-  metricCard: { flex: 1, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 13, gap: 12 },
-  metricIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
-  metricVal: { fontSize: 20, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.4, fontVariant: ['tabular-nums'] },
-  metricLabel: { fontSize: 11, color: theme.colors.muted, fontWeight: '600', marginTop: 1 },
-
-  brickCard: { width: 150, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, minHeight: 118, justifyContent: 'space-between' },
-  brickCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  brickIconBox: { width: 40, height: 40, borderRadius: 11, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
-  brickDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.green, marginTop: 5 },
-  brickName: { fontSize: 16, fontWeight: '800', color: theme.colors.text, letterSpacing: -0.32 },
-  brickMeta: { fontSize: 11, fontWeight: '600', color: theme.colors.muted, marginTop: 2 },
-
-  addBrickCard: { width: 150, backgroundColor: 'transparent', borderWidth: 1.5, borderColor: theme.colors.border, borderRadius: 18, padding: 16, minHeight: 118, justifyContent: 'space-between', borderStyle: 'dashed' },
-
-  livePill: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  livePillDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.colors.green },
-  livePillText: { fontSize: 12, fontWeight: '700', color: theme.colors.green },
-
-  activityCard: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, overflow: 'hidden' },
-  activityRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  activityIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
-  activityTitle: { fontSize: 14, fontWeight: '700', color: theme.colors.text },
-  activitySub: { fontSize: 11, fontWeight: '600', color: theme.colors.muted, marginTop: 1 },
-  activityTime: { fontSize: 11, fontWeight: '600', color: theme.colors.faint, fontVariant: ['tabular-nums'] },
-  activityEmpty: { color: theme.colors.faint, fontSize: 12, fontWeight: '600' },
+  screen: { paddingHorizontal: 0 },
+  scroll: { paddingHorizontal: 22, paddingBottom: 34, flexGrow: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 34 },
+  date: { color: theme.colors.text, fontSize: 14, fontWeight: '500' },
+  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
+  sectionLabel: { color: theme.colors.text, fontSize: 14, fontWeight: '500', marginBottom: 10 },
+  modeRailOuter: { marginHorizontal: -22, marginBottom: 20 },
+  modeRail: { paddingHorizontal: 22, gap: 12 },
+  modeCard: { width: 176, height: 208, borderRadius: 24, padding: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'space-between' },
+  modeCardActive: { backgroundColor: theme.mode === 'dark' ? '#F7F7F5' : '#111113', borderColor: theme.mode === 'dark' ? '#F7F7F5' : '#111113' },
+  activeMark: { backgroundColor: theme.mode === 'dark' ? '#202224' : '#FFFFFF' },
+  modeName: { color: theme.colors.text, fontSize: 16, fontWeight: '600', marginBottom: 3 },
+  modeMeta: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 12, lineHeight: 17 },
+  modeActiveText: { color: theme.mode === 'dark' ? '#111113' : '#F7F7F5' },
+  emptyMode: { width: 220, height: 208, borderRadius: 24, padding: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'space-between' },
+  emptyModeTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '600' },
+  pressed: { transform: [{ scale: 0.985 }], opacity: 0.9 },
+  tapHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14 },
+  tapHintText: { color: theme.colors.muted, fontSize: 13, fontWeight: '400' },
+  summaryCard: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, padding: 18, marginTop: 'auto', minHeight: 124 },
+  summaryTop: { flexDirection: 'row', justifyContent: 'space-between' },
+  summaryValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 16 },
+  summaryLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11, marginTop: 3 },
+  summaryPeriod: { color: theme.colors.text, fontSize: 13 },
+  bars: { height: 38, flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
+  bar: { flex: 1, minHeight: 8, borderRadius: 2, backgroundColor: theme.colors.card2 },
+  barToday: { backgroundColor: theme.colors.accent },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
+  statusText: { color: theme.colors.muted, fontSize: 13 },
 });

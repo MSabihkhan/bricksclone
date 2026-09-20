@@ -91,13 +91,16 @@ export function ManageBlockedApps() {
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close app picker" onPress={() => setPickerMode(false)} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Icon name="back" size={20} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Select Apps</Text>
+          <View style={styles.pickerHeading}>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Blocked apps</Text>
+            <Text style={[styles.pickerCount, { color: colors.muted }]}>{count} selected</Text>
+          </View>
           <View style={{ width: 38 }} />
         </View>
         <View style={{ paddingHorizontal: 22, paddingBottom: 16 }}>
           <TextInput
             style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-            placeholder="Search apps..."
+            placeholder="Search apps"
             placeholderTextColor={colors.muted}
             value={search}
             onChangeText={setSearch}
@@ -127,7 +130,7 @@ export function ManageBlockedApps() {
         )}
         <View style={[styles.bottomPad, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
           <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent }]} onPress={savePicker}>
-            <Text style={styles.btnPrimaryText}>Done ({count} selected)</Text>
+            <Text style={styles.btnPrimaryText}>Save blocked apps</Text>
           </TouchableOpacity>
         </View>
       </Screen>
@@ -138,9 +141,9 @@ export function ManageBlockedApps() {
     <Screen style={{ paddingHorizontal: 0 }}>
       <View style={styles.headerView}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Text style={[styles.headerTitleView, { color: colors.text }]}>Blocked apps</Text>
-          <View style={[styles.countPill, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.countText, { color: colors.text }]}>{blocked.length} apps</Text>
+          <View>
+            <Text style={[styles.headerTitleView, { color: colors.text }]}>Blocked apps</Text>
+            <Text style={[styles.headerSub, { color: colors.muted }]}>{blocked.length} selected · blocked during focus</Text>
           </View>
         </View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add blocked apps" style={[styles.plusCircle, { backgroundColor: colors.accent }]} onPress={enterPicker}>
@@ -181,36 +184,39 @@ export function ManageBlockedApps() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 22, paddingBottom: 16 },
-  headerView: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 22, paddingBottom: 24 },
-  circleBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '800' },
-  headerTitleView: { fontSize: 28, fontWeight: '800', letterSpacing: -0.03 * 28 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 18, paddingHorizontal: 22, paddingBottom: 16 },
+  headerView: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 18, paddingHorizontal: 22, paddingBottom: 24 },
+  circleBtn: { width: 44, height: 44, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  pickerHeading: { alignItems: 'center' },
+  headerTitle: { fontFamily: 'BricolageGrotesque', fontSize: 20, fontWeight: '400', letterSpacing: -0.6 },
+  pickerCount: { fontFamily: 'IBMPlexMono-Regular', fontSize: 10, marginTop: 2 },
+  headerTitleView: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.8 },
+  headerSub: { fontFamily: 'IBMPlexMono-Regular', fontSize: 11, marginTop: 4 },
   countPill: { paddingVertical: 4, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1 },
   countText: { fontSize: 12, fontWeight: '700' },
-  plusCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  plusCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   
-  input: { width: '100%', height: 50, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, fontSize: 16, fontWeight: '600' },
+  input: { width: '100%', height: 50, borderRadius: 13, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, fontSize: 15, fontWeight: '500' },
   
   scrollPad: { paddingHorizontal: 22, paddingBottom: 40 },
   scrollPadView: { paddingHorizontal: 22, paddingBottom: 40 },
   
-  pickerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, gap: 12 },
+  pickerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 60, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   iconInitial: { fontSize: 14, fontWeight: '700' },
-  pickerLabel: { flex: 1, fontSize: 14, fontWeight: '700' },
+  pickerLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
   checkCircle: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   
-  bottomPad: { paddingHorizontal: 26, paddingBottom: 30, paddingTop: 14 },
-  btnPrimary: { height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  bottomPad: { paddingHorizontal: 22, paddingBottom: 24, paddingTop: 14 },
+  btnPrimary: { height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 
   emptyCenter: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   emptyIconBox: { width: 88, height: 88, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
   emptyTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
   emptySub: { fontSize: 14, fontWeight: '500' },
 
-  viewRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16, borderWidth: 1, gap: 12 },
-  viewLabel: { fontSize: 14, fontWeight: '700' },
-  viewPkg: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  viewRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 17, borderWidth: StyleSheet.hairlineWidth, gap: 12 },
+  viewLabel: { fontSize: 15, fontWeight: '600' },
+  viewPkg: { fontFamily: 'IBMPlexMono-Regular', fontSize: 10, marginTop: 3 },
 });

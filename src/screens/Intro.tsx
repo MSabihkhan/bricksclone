@@ -7,6 +7,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../navigation/types';
+import { BrickMark } from '../components/BrickMark';
 
 const STEPS = [
   { icon: 'shield', title: 'Block the noise', text: 'Lock away distracting apps in one tap and reclaim hours of your day.' },
@@ -28,16 +29,17 @@ export function Intro() {
   };
 
   const currentStep = STEPS[step];
-  const obTint = colors.accent + '24';
 
   return (
     <Screen style={styles.container}>
       <OnboardingHeader />
       
       <View style={styles.content}>
-        <View style={[styles.iconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>
-          <Icon name={currentStep.icon} size={44} color={colors.accent} />
-        </View>
+        {step === 0 ? <BrickMark size={96} /> : (
+          <View style={[styles.iconBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Icon name={currentStep.icon} size={36} color={colors.text} />
+          </View>
+        )}
         <Text style={[styles.title, { color: colors.text }]}>{currentStep.title}</Text>
         <Text style={[styles.body, { color: colors.muted }]}>{currentStep.text}</Text>
       </View>
@@ -70,32 +72,34 @@ export function Intro() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 30,
-    paddingTop: 32,
-    paddingBottom: 34,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
   },
   iconBox: {
-    width: 104,
-    height: 104,
-    borderRadius: 30,
-    borderWidth: 1,
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 34,
   },
   title: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1.19,
-    lineHeight: 36,
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 36,
+    fontWeight: '400',
+    letterSpacing: -1.8,
+    lineHeight: 40,
+    marginTop: 30,
   },
   body: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '400',
     lineHeight: 26,
     marginTop: 16,
   },
@@ -114,13 +118,13 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

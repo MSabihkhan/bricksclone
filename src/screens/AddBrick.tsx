@@ -16,6 +16,7 @@ import {
 import { NfcTag } from '../services/nfc/types';
 import { Tag } from '../db/types';
 import { describeError } from '../utils/describeError';
+import { BrickMark } from '../components/BrickMark';
 
 type Step = 'scan' | 'detected' | 'name' | 'block' | 'done';
 
@@ -206,12 +207,11 @@ export function AddBrick() {
           <View style={styles.contentCenter}>
             <View style={styles.scannerBox}>
               <Animated.View style={[styles.pulseRing, { borderColor: colors.accent, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
-              <View style={[styles.scanIconBox, { backgroundColor: colors.accent, shadowColor: colors.accent }]}>
-                <Icon name="radio" size={44} color="#fff" />
-              </View>
+              <BrickMark size={98} />
             </View>
-            <Text style={[styles.scanTitle, { color: colors.text }]}>Hold your phone{'\n'}near the Brick</Text>
-            <Text style={[styles.scanSub, { color: colors.muted }]}>Scanning for your tag…</Text>
+            <Text style={[styles.scanTitle, { color: colors.text }]}>Tap your Brick</Text>
+            <Text style={[styles.scanSub, { color: colors.muted }]}>Hold the top of your phone near the Brick.</Text>
+            <Text style={[styles.listening, { color: colors.accent }]}>LISTENING FOR NFC</Text>
           </View>
         )}
       </Screen>
@@ -228,13 +228,10 @@ export function AddBrick() {
             <Icon name="x" size={18} color={colors.muted} />
           </TouchableOpacity>
           <View style={styles.contentCenter}>
-            <View style={[styles.detectedBox, { backgroundColor: '#4DA3FF', shadowColor: '#4DA3FF' }]}>
-              <View style={styles.glossyBar} />
-              <Icon name="radio" size={46} color="#fff" />
-            </View>
+            <BrickMark size={134} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-              <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: '#4DA3FF' }} />
-              <Text style={[styles.detectedEyebrow, { color: '#4DA3FF' }]}>REGISTERED BRICK</Text>
+              <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.text }} />
+              <Text style={[styles.detectedEyebrow, { color: colors.text }]}>REGISTERED BRICK</Text>
             </View>
             <Text style={[styles.detectedTitle, { color: colors.text, textAlign: 'center' }]}>{registeredTag.name} is already registered</Text>
             <Text style={[styles.detectedId, { color: colors.muted, fontSize: 14 }]}>{modeLbl} · {appsN} apps</Text>
@@ -259,13 +256,10 @@ export function AddBrick() {
           <Icon name="x" size={18} color={colors.muted} />
         </TouchableOpacity>
         <View style={styles.contentCenter}>
-          <View style={[styles.detectedBox, { backgroundColor: colors.accent, shadowColor: colors.accent }]}>
-            <View style={styles.glossyBar} />
-            <Icon name="radio" size={46} color="#fff" />
-          </View>
+          <BrickMark size={134} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.green }} />
-            <Text style={[styles.detectedEyebrow, { color: colors.green }]}>NEW BRICK DETECTED</Text>
+            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.accent }} />
+            <Text style={[styles.detectedEyebrow, { color: colors.accent }]}>NEW BRICK DETECTED</Text>
           </View>
           <Text style={[styles.detectedTitle, { color: colors.text }]}>Unregistered Brick</Text>
           <Text style={[styles.detectedId, { color: colors.muted }]}>ID · {formatTagId(tagId)}</Text>
@@ -399,9 +393,7 @@ export function AddBrick() {
     return (
       <Screen style={styles.container}>
         <View style={styles.contentCenter}>
-          <View style={[styles.doneCheck, { backgroundColor: colors.green, shadowColor: colors.green }]}>
-            <Icon name="check" size={46} color="#fff" />
-          </View>
+          <BrickMark size={104} />
           <Text style={[styles.doneTitle, { color: colors.text }]}>"{nbName}" is ready</Text>
           <Text style={[styles.doneSub, { color: colors.muted }]}>Tap this Brick anytime to start a {modeLabel(nbMode)} session.</Text>
           <View style={styles.chipsWrap}>
@@ -429,31 +421,32 @@ export function AddBrick() {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 30, paddingTop: 60, paddingBottom: 40 },
+  container: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 24 },
   closeScan: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
   contentCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scannerBox: { width: 190, height: 190, alignItems: 'center', justifyContent: 'center', marginBottom: 48 },
   pulseRing: { position: 'absolute', width: 190, height: 190, borderRadius: 95, borderWidth: 1 },
   scanIconBox: { width: 98, height: 98, borderRadius: 28, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 18 }, shadowRadius: 46, shadowOpacity: 0.5, elevation: 12 },
-  scanTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.03 * 26, textAlign: 'center', lineHeight: 30, marginBottom: 12 },
-  scanSub: { fontSize: 15, fontWeight: '500' },
+  scanTitle: { fontFamily: 'BricolageGrotesque', fontSize: 32, fontWeight: '400', letterSpacing: -1.5, textAlign: 'center', lineHeight: 36, marginBottom: 12 },
+  scanSub: { fontSize: 15, fontWeight: '400', textAlign: 'center' },
+  listening: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.6, marginTop: 20 },
   
   detectedBox: { width: 134, height: 134, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 32, shadowOffset: { width: 0, height: 20 }, shadowRadius: 52, shadowOpacity: 0.4, elevation: 12, overflow: 'hidden' },
   glossyBar: { position: 'absolute', top: 16, left: 18, right: 18, height: 24, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.3)' },
-  detectedEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.16 * 11 },
-  detectedTitle: { fontSize: 26, fontWeight: '800', letterSpacing: -0.03 * 26, marginBottom: 8 },
-  detectedId: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  detectedEyebrow: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, fontWeight: '500', letterSpacing: 0.6 },
+  detectedTitle: { fontFamily: 'BricolageGrotesque', fontSize: 28, fontWeight: '400', letterSpacing: -1.3, marginBottom: 8 },
+  detectedId: { fontFamily: 'IBMPlexMono-Regular', fontSize: 12, fontVariant: ['tabular-nums'] },
   
   bottomGap: { gap: 12 },
-  btnPrimary: { width: '100%', height: 54, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  btnGhost: { width: '100%', height: 54, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  btnGhostText: { fontSize: 15, fontWeight: '800' },
+  btnPrimary: { width: '100%', height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  btnGhost: { width: '100%', height: 56, borderRadius: 17, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
+  btnGhostText: { fontSize: 15, fontWeight: '700' },
 
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingTop: 58, paddingBottom: 14 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingTop: 18, paddingBottom: 14 },
   circleBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   headerCenter: { flex: 1, paddingHorizontal: 12 },
-  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 0.14 * 11 },
+  eyebrow: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, fontWeight: '500', letterSpacing: 0.5 },
   headerTitle: { fontSize: 15, fontWeight: '800', marginTop: 1 },
 
   scrollFlex: { flex: 1 },
@@ -461,7 +454,7 @@ const styles = StyleSheet.create({
   bottomPad: { paddingHorizontal: 26, paddingBottom: 30, paddingTop: 14 },
 
   nameIconBox: { width: 76, height: 76, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
-  title27: { fontSize: 27, fontWeight: '800', letterSpacing: -0.03 * 27, marginBottom: 8 },
+  title27: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.4, marginBottom: 8 },
   sub14: { fontSize: 14, fontWeight: '500', marginBottom: 22, lineHeight: 20 },
   input: { width: '100%', height: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 18, fontSize: 20, fontWeight: '800' },
   
@@ -470,7 +463,7 @@ const styles = StyleSheet.create({
   locBtn: { width: '31%', paddingVertical: 13, paddingHorizontal: 6, borderRadius: 14, borderWidth: 1, alignItems: 'center', gap: 7 },
   locLabel: { fontSize: 11, fontWeight: '700' },
   
-  title23: { fontSize: 23, fontWeight: '800', letterSpacing: -0.03 * 23, marginBottom: 20 },
+  title23: { fontFamily: 'BricolageGrotesque', fontSize: 26, fontWeight: '400', letterSpacing: -1.1, marginBottom: 20 },
   modeList: { gap: 10 },
   modeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, gap: 13 },
   modeDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
@@ -488,7 +481,7 @@ const styles = StyleSheet.create({
   strictSub: { fontSize: 12, fontWeight: '500', marginTop: 1 },
 
   doneCheck: { width: 104, height: 104, borderRadius: 52, alignItems: 'center', justifyContent: 'center', marginBottom: 26, shadowOffset: { width: 0, height: 18 }, shadowRadius: 46, shadowOpacity: 0.5, elevation: 12 },
-  doneTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.03 * 28, textAlign: 'center', marginBottom: 10 },
+  doneTitle: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.4, textAlign: 'center', marginBottom: 10 },
   doneSub: { fontSize: 15, fontWeight: '500', textAlign: 'center', lineHeight: 22.5, paddingHorizontal: 20, marginBottom: 26 },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 9 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1 },

@@ -15,7 +15,7 @@ export function OnboardingHeader({ onSkip }: OnboardingHeaderProps) {
         <View style={[styles.logoBox, { backgroundColor: colors.accent }]}>
           <View style={styles.innerSquare} />
         </View>
-        <Text style={[styles.logoText, { color: colors.text }]}>BRICKS</Text>
+        <Text style={[styles.logoText, { color: colors.text }]}>bricks</Text>
       </View>
       {onSkip && (
         <TouchableOpacity onPress={onSkip}>
@@ -37,26 +37,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 9,
   },
   innerSquare: {
-    width: 9,
-    height: 9,
+    width: 8,
+    height: 8,
     backgroundColor: '#fff',
     borderRadius: 2,
   },
   logoText: {
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.9,
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: -0.5,
   },
   skipText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

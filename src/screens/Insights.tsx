@@ -1,447 +1,145 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
-import { Card } from '../components/Card';
 import { SegmentedControl } from '../components/SegmentedControl';
-import { RingProgress } from '../components/RingProgress';
-import { Icon } from '../components/Icon';
-import { SectionHeader } from '../components/SectionHeader';
+import { Theme } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
-import { 
-  getPeriodStats, getFocusBars, getTopBlocked, 
-  getPeriodComparison, getCompletionByMode, getBestDay, getAvgSessionSec,
-  Period, PeriodStats, BarDatum, TopApp 
+import { db } from '../db';
+import {
+  BarDatum,
+  getAvgSessionSec,
+  getCompletionByMode,
+  getFocusBars,
+  getPeriodComparison,
+  getPeriodStats,
+  periodRange,
+  Period,
+  PeriodStats,
 } from '../services/stats/statsService';
 
-function formatDuration(sec: number) {
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+function formatDuration(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, '0')}m` : `${minutes}m`;
+}
+
+function dateRange(period: Period) {
+  const { start, end } = periodRange(period);
+  const a = new Date(start * 1000);
+  const b = new Date(end * 1000);
+  const month = b.toLocaleDateString(undefined, { month: 'long' });
+  if (period === 'day') return b.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
+  if (period === 'month') return month;
+  return `${a.getDate()} – ${b.getDate()} ${month}`;
 }
 
 export function Insights() {
   const theme = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
   const [period, setPeriod] = useState<Period>('week');
   const [stats, setStats] = useState<PeriodStats | null>(null);
   const [bars, setBars] = useState<BarDatum[]>([]);
-  const [topApps, setTopApps] = useState<TopApp[]>([]);
-  
-  const [cmp, setCmp] = useState<{ focusSec: number; prevFocusSec: number; deltaPct: number } | null>(null);
-  const [completion, setCompletion] = useState<Array<{ mode: string; label: string; completed: number; total: number; pct: number }>>([]);
-  const [bestDay, setBestDay] = useState<{ label: string; minutes: number } | null>(null);
-  const [avgSec, setAvgSec] = useState<number>(0);
+  const [comparison, setComparison] = useState(0);
+  const [modes, setModes] = useState<Array<{ mode: string; label: string; completed: number; total: number; pct: number }>>([]);
+  const [average, setAverage] = useState(0);
+  const [endedEarly, setEndedEarly] = useState(0);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      const load = async () => {
-        try {
-          const [s, b, t, c, comp, best, avg] = await Promise.all([
-            getPeriodStats(period),
-            getFocusBars(period),
-            getTopBlocked(period),
-            getPeriodComparison(period),
-            getCompletionByMode(period),
-            getBestDay(period),
-            getAvgSessionSec(period)
-          ]);
-          if (active) {
-            setStats(s);
-            setBars(b);
-            setTopApps(t);
-            setCmp(c);
-            setCompletion(comp);
-            setBestDay(best);
-            setAvgSec(avg);
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      };
-      load();
-      return () => { active = false; };
-    }, [period])
-  );
+  useFocusEffect(useCallback(() => {
+    let mounted = true;
+    const range = periodRange(period);
+    Promise.all([
+      getPeriodStats(period),
+      getFocusBars(period),
+      getPeriodComparison(period),
+      getCompletionByMode(period),
+      getAvgSessionSec(period),
+      db.sessions.sessionsBetween(range.start, range.end),
+    ]).then(([nextStats, nextBars, nextComparison, nextModes, nextAverage, sessions]) => {
+      if (!mounted) return;
+      setStats(nextStats);
+      setBars(nextBars);
+      setComparison(nextComparison.deltaPct);
+      setModes(nextModes);
+      setAverage(nextAverage);
+      setEndedEarly(sessions.filter(session => session.endedVia === 'override').length);
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [period]));
 
-  const getPeriodLabel = () => {
-    let title = 'This week';
-    if (period === 'day') title = 'Today';
-    if (period === 'month') title = 'This month';
-    return title;
-  };
-
-  const maxAppCount = topApps.length > 0 ? topApps[0].count : 1;
-
-  let deltaStr = '—';
-  let deltaColor = theme.colors.muted;
-  if (cmp) {
-    if (cmp.deltaPct > 0) {
-      deltaStr = `+${cmp.deltaPct}% vs last ${period}`;
-      deltaColor = '#3DD68C'; // green
-    } else if (cmp.deltaPct < 0) {
-      deltaStr = `${cmp.deltaPct}% vs last ${period}`;
-      deltaColor = '#E82127'; // accent
-    }
-  }
+  const maximum = Math.max(1, ...bars.map(bar => bar.value));
+  const currentIndex = bars.length - 1;
+  const longest = bars.reduce<BarDatum | null>((best, bar) => !best || bar.value > best.value ? bar : best, null);
 
   return (
-    <Screen>
+    <Screen style={styles.screen}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <Text style={[theme.typography.screenTitle, { color: theme.colors.text }]}>Insights</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.muted }]}>{getPeriodLabel()}</Text>
+        <Text style={styles.title}>Insights</Text>
+        <SegmentedControl options={[{ label: 'Day', value: 'day' }, { label: 'Week', value: 'week' }, { label: 'Month', value: 'month' }]} value={period} onChange={value => setPeriod(value as Period)} />
+
+        <View style={styles.overview}>
+          <Text style={styles.range}>{dateRange(period)}</Text>
+          <Text style={styles.total}>{formatDuration(stats?.focusSec ?? 0)}</Text>
+          <Text style={styles.comparison}>across {stats?.sessions ?? 0} sessions · {comparison === 0 ? 'same as last period' : `${Math.abs(comparison)}% ${comparison > 0 ? 'more' : 'less'} than last ${period}`}</Text>
         </View>
 
-        <SegmentedControl
-          options={[
-            { label: 'Day', value: 'day' },
-            { label: 'Week', value: 'week' },
-            { label: 'Month', value: 'month' },
-          ]}
-          value={period}
-          onChange={(v) => setPeriod(v as Period)}
-        />
-
-        <Card radius={22} style={styles.totalCard}>
-          <Text style={[styles.eyebrow, { color: theme.colors.muted }]}>TOTAL FOCUS</Text>
-          <Text style={[theme.typography.statLarge, { color: theme.colors.text, fontVariant: ['tabular-nums'] }]}>
-            {stats ? formatDuration(stats.focusSec) : '0m'}
-          </Text>
-          <View style={styles.chipsRow}>
-            <View style={[styles.chip, { backgroundColor: theme.colors.card2 }]}>
-              <Icon name="flame" size={14} color={theme.colors.accent} />
-              <Text style={[styles.chipText, { color: theme.colors.text }]}>{stats?.streakDays || 0}-day streak</Text>
+        <View style={styles.chart}>
+          {bars.map((bar, index) => (
+            <View key={`${bar.label}-${index}`} style={styles.chartColumn}>
+              <View style={[styles.chartBar, { height: 24 + Math.round((bar.value / maximum) * 72) }, index === currentIndex && styles.chartBarCurrent]} />
+              <Text style={styles.chartLabel}>{bar.label.slice(0, 1)}</Text>
             </View>
-            <View style={[styles.chip, { backgroundColor: theme.colors.card2 }]}>
-              <Icon name="clock" size={14} color={theme.colors.muted} />
-              <Text style={[styles.chipText, { color: theme.colors.text }]}>avg {formatDuration(avgSec)}</Text>
-            </View>
-          </View>
-          <View style={[styles.statsRow, { borderTopColor: theme.colors.border, borderTopWidth: 1 }]}>
-            <View style={styles.statCol}>
-              <Text style={[styles.statVal, { color: theme.colors.text }]}>{stats?.sessions || 0}</Text>
-              <Text style={[styles.statCap, { color: theme.colors.muted }]}>sessions</Text>
-            </View>
-            <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-            <View style={styles.statCol}>
-              <Text style={[styles.statVal, { color: theme.colors.text }]}>{stats?.blocked || 0}</Text>
-              <Text style={[styles.statCap, { color: theme.colors.muted }]}>blocked</Text>
-            </View>
-          </View>
-        </Card>
-
-        <View style={styles.ringsGrid}>
-          <Card radius={18} padding={0} style={styles.ringCard}>
-            <View style={styles.ringInner}>
-              <RingProgress size={66} stroke={6} progress={(stats?.goalPct || 0)/100} color={theme.colors.accent} trackColor={theme.colors.track}>
-                <Text style={[styles.ringVal, { color: theme.colors.text }]}>{stats?.goalPct || 0}%</Text>
-              </RingProgress>
-              <Text style={[styles.ringLbl, { color: theme.colors.muted }]}>Goal met</Text>
-            </View>
-          </Card>
-          <Card radius={18} padding={0} style={styles.ringCard}>
-            <View style={styles.ringInner}>
-              <RingProgress size={66} stroke={6} progress={(stats?.consistencyPct || 0)/100} color={theme.colors.blue} trackColor={theme.colors.track}>
-                <Text style={[styles.ringVal, { color: theme.colors.text }]}>{stats?.consistencyPct || 0}%</Text>
-              </RingProgress>
-              <Text style={[styles.ringLbl, { color: theme.colors.muted }]}>Consistency</Text>
-            </View>
-          </Card>
-          <Card radius={18} padding={0} style={styles.ringCard}>
-            <View style={styles.ringInner}>
-              <RingProgress size={66} stroke={6} progress={Math.min((stats?.streakDays || 0)/7, 1)} color={theme.colors.green} trackColor={theme.colors.track}>
-                <Text style={[styles.ringVal, { color: theme.colors.text }]}>{stats?.streakDays || 0}</Text>
-              </RingProgress>
-              <Text style={[styles.ringLbl, { color: theme.colors.muted }]}>Streak</Text>
-            </View>
-          </Card>
+          ))}
         </View>
+        <Text style={styles.chartNote}>{longest && longest.value > 0 ? `${longest.label} was the longest at ${formatDuration(longest.value)}.` : 'No completed focus sessions in this period yet.'}</Text>
 
-        <Card radius={22} style={styles.barsCard}>
-          <View style={styles.barsHeader}>
-            <Text style={[styles.eyebrow, { color: theme.colors.muted }]}>FOCUS TREND</Text>
-            <Text style={[styles.deltaLbl, { color: deltaColor }]}>{deltaStr}</Text>
-          </View>
-          <View style={styles.barsContainer}>
-            {bars.map((b, i) => {
-              const maxVal = Math.max(...bars.map(x => x.value), 1);
-              const pct = (b.value / maxVal) * 100;
-              return (
-                <View key={i} style={styles.barCol}>
-                  <Text style={[styles.barVal, { color: theme.colors.faint }]}>{b.value > 0 ? Math.round(b.value/60) : ''}</Text>
-                  <View style={styles.barWrap}>
-                    <View style={[styles.barFill, { 
-                      height: `${pct}%`, 
-                      backgroundColor: b.isMax ? theme.colors.accent : theme.colors.track,
-                      borderTopLeftRadius: 8, borderTopRightRadius: 8,
-                      borderBottomLeftRadius: 4, borderBottomRightRadius: 4
-                    }]} />
-                  </View>
-                  <Text style={[styles.barLbl, { color: theme.colors.muted }]}>{b.label}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </Card>
-
-        {completion.length > 0 && (
-          <>
-            <SectionHeader title="COMPLETION" />
-            <Card radius={22} style={styles.completionCard}>
-              {completion.map((c, i) => (
-                <View key={c.mode} style={[styles.compRow, i > 0 && { marginTop: 12 }]}>
-                  <View style={styles.compTextRow}>
-                    <Text style={[styles.compLabel, { color: theme.colors.text }]}>{c.label}</Text>
-                    <Text style={[styles.compCount, { color: theme.colors.muted }]}>{c.completed}/{c.total}</Text>
-                  </View>
-                  <View style={[styles.compTrack, { backgroundColor: theme.colors.track }]}>
-                    <View style={[styles.compFill, { width: `${c.pct}%`, backgroundColor: theme.colors.accent }]} />
-                  </View>
-                </View>
-              ))}
-            </Card>
-          </>
-        )}
-
-        <View style={[styles.twoCellCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-          <View style={styles.cell}>
-            <Text style={[styles.cellVal, { color: theme.colors.text }]}>{bestDay ? bestDay.label : '—'}</Text>
-            <Text style={[styles.cellLbl, { color: theme.colors.faint }]}>BEST DAY</Text>
-          </View>
-          <View style={[styles.cellDivider, { backgroundColor: theme.colors.border }]} />
-          <View style={styles.cell}>
-            <Text style={[styles.cellVal, { color: theme.colors.text }]}>{formatDuration(avgSec)}</Text>
-            <Text style={[styles.cellLbl, { color: theme.colors.faint }]}>AVG SESSION</Text>
-          </View>
-        </View>
-
-        <Card radius={22} style={styles.appsCard}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>Most blocked</Text>
-          {topApps.map((app, i) => {
-            const pct = (app.count / maxAppCount) * 100;
-            return (
-              <View key={i} style={styles.appRow}>
-                <Text style={[styles.appName, { color: theme.colors.text }]} numberOfLines={1}>{app.name}</Text>
-                <View style={[styles.appTrack, { backgroundColor: theme.colors.track }]}>
-                  <View style={[styles.appFill, { width: `${pct}%`, backgroundColor: i === 0 ? theme.colors.accent : theme.alpha(theme.colors.accent, 0.35) }]} />
-                </View>
-                <Text style={[styles.appCount, { color: theme.colors.muted, fontVariant: ['tabular-nums'] }]}>{app.count}</Text>
+        <Text style={styles.sectionTitle}>By mode</Text>
+        <View>
+          {modes.length === 0 ? (
+            <Text style={styles.empty}>Mode totals appear after your first completed session.</Text>
+          ) : modes.slice(0, 4).map(item => (
+            <View key={item.mode} style={styles.modeRow}>
+              <View style={styles.modeTop}>
+                <Text style={styles.modeName}>{item.label}</Text>
+                <Text style={styles.modeValue}>{item.completed}/{item.total} complete</Text>
               </View>
-            );
-          })}
-        </Card>
+              <View style={styles.modeTrack}><View style={[styles.modeFill, { width: `${Math.max(4, item.pct)}%` }]} /></View>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.footerMetrics}>
+          <View><Text style={styles.metric}>{formatDuration(average)}</Text><Text style={styles.metricLabel}>Average</Text></View>
+          <View><Text style={styles.metric}>{endedEarly}</Text><Text style={styles.metricLabel}>Ended early</Text></View>
+        </View>
       </ScrollView>
     </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  scroll: {
-    paddingBottom: 40,
-    gap: 16,
-  },
-  header: {
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  totalCard: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.16 * 11,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 99,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    width: '100%',
-    paddingTop: 16,
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  statCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statVal: {
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  statCap: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  divider: {
-    width: 1,
-    height: 30,
-  },
-  ringsGrid: {
-    flexDirection: 'row',
-    gap: 11,
-  },
-  ringCard: {
-    flex: 1,
-  },
-  ringInner: {
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    gap: 8,
-  },
-  ringVal: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  ringLbl: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  barsCard: {
-    gap: 16,
-  },
-  barsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  deltaLbl: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  cardTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  barsContainer: {
-    flexDirection: 'row',
-    height: 150,
-    alignItems: 'flex-end',
-  },
-  barCol: {
-    flex: 1,
-    alignItems: 'center',
-    height: '100%',
-  },
-  barWrap: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 32,
-    justifyContent: 'flex-end',
-    marginVertical: 4,
-  },
-  barFill: {
-    width: '100%',
-  },
-  barVal: {
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  barLbl: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  completionCard: {
-    gap: 0,
-  },
-  compRow: {},
-  compTextRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  compLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  compCount: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  compTrack: {
-    height: 6,
-    borderRadius: 3,
-    width: '100%',
-  },
-  compFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  twoCellCard: {
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderRadius: 16,
-    alignItems: 'center',
-  },
-  cell: {
-    flex: 1,
-    padding: 16,
-    alignItems: 'center',
-    gap: 4,
-  },
-  cellVal: {
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  cellLbl: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.14 * 11,
-  },
-  cellDivider: {
-    width: 1,
-    height: '100%',
-  },
-  appsCard: {
-    gap: 16,
-  },
-  appRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  appName: {
-    fontSize: 13,
-    fontWeight: '700',
-    width: 74,
-  },
-  appTrack: {
-    flex: 1,
-    height: 9,
-    borderRadius: 99,
-  },
-  appFill: {
-    height: '100%',
-    borderRadius: 99,
-  },
-  appCount: {
-    fontSize: 13,
-    fontWeight: '800',
-    width: 30,
-    textAlign: 'right',
-  },
+const makeStyles = (theme: Theme) => StyleSheet.create({
+  screen: { paddingHorizontal: 0 },
+  scroll: { paddingHorizontal: 22, paddingBottom: 36 },
+  title: { ...theme.typography.screenTitle, color: theme.colors.text, marginBottom: 24 },
+  overview: { marginTop: 28 },
+  range: { color: theme.colors.text, fontSize: 14 },
+  total: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 18, marginTop: 2 },
+  comparison: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
+  chart: { height: 142, flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 22 },
+  chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 9 },
+  chartBar: { width: '100%', minHeight: 24, borderRadius: 5, backgroundColor: theme.colors.card2 },
+  chartBarCurrent: { backgroundColor: theme.colors.accent },
+  chartLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11 },
+  chartNote: { color: theme.colors.muted, fontSize: 11, lineHeight: 17, marginTop: 10 },
+  sectionTitle: { color: theme.colors.text, fontSize: 14, marginTop: 28, marginBottom: 10 },
+  empty: { color: theme.colors.muted, fontSize: 13, paddingVertical: 20 },
+  modeRow: { borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: 12 },
+  modeTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  modeName: { color: theme.colors.text, fontSize: 13, fontWeight: '600' },
+  modeValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 12 },
+  modeTrack: { height: 3, backgroundColor: theme.colors.track, overflow: 'hidden' },
+  modeFill: { height: 3, backgroundColor: theme.colors.text },
+  footerMetrics: { flexDirection: 'row', gap: 36, marginTop: 20 },
+  metric: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 15 },
+  metricLabel: { color: theme.colors.text, fontSize: 12, marginTop: 2 },
 });

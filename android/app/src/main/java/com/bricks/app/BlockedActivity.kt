@@ -59,13 +59,16 @@ class BlockedActivity : Activity() {
             }
         }
 
-        window.statusBarColor = Color.parseColor("#000000")
-        window.navigationBarColor = Color.parseColor("#000000")
+        window.statusBarColor = Color.parseColor("#0D0D0F")
+        window.navigationBarColor = Color.parseColor("#0D0D0F")
+
+        val displayFace = runCatching { Typeface.createFromAsset(assets, "fonts/BricolageGrotesque.ttf") }.getOrNull()
+        val monoFace = runCatching { Typeface.createFromAsset(assets, "fonts/IBMPlexMono-Regular.ttf") }.getOrNull()
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.BLACK)
+            setBackgroundColor(Color.parseColor("#0D0D0F"))
             setPadding(dp(24), dp(44), dp(24), dp(32))
         }
 
@@ -75,6 +78,7 @@ class BlockedActivity : Activity() {
             setTextColor(Color.parseColor("#8E8E93"))
             letterSpacing = 0.16f
             gravity = Gravity.CENTER
+            typeface = monoFace
         }
         layout.addView(brand, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dp(30)
@@ -84,13 +88,13 @@ class BlockedActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(24), dp(30), dp(24), dp(26))
-            background = roundedBackground("#1C1C1E", 30f, "#303034")
-            elevation = dp(12).toFloat()
+            background = roundedBackground("#17181A", 24f, "#2B2C2F")
+            elevation = dp(6).toFloat()
         }
 
         val iconWell = LinearLayout(this).apply {
             gravity = Gravity.CENTER
-            background = roundedBackground("#2C2C2E", 20f)
+            background = roundedBackground("#202224", 17f)
         }
         val lockIcon = ImageView(this).apply {
             setImageResource(android.R.drawable.ic_lock_lock)
@@ -105,19 +109,21 @@ class BlockedActivity : Activity() {
             text = "FOCUS IN PROGRESS"
             textSize = 11f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.parseColor("#64D2FF"))
+            setTextColor(Color.parseColor("#E01F27"))
             letterSpacing = 0.14f
             gravity = Gravity.CENTER
+            typeface = monoFace
         }
         card.addView(eyebrow)
 
         val title = TextView(this).apply {
-            text = "Stay with it."
+            text = "Not right now."
             textSize = 34f
-            setTypeface(null, Typeface.BOLD)
+            typeface = displayFace ?: Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setTextColor(Color.WHITE)
             letterSpacing = -0.025f
             gravity = Gravity.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setPadding(0, dp(10), 0, dp(12))
         }
         card.addView(title)
@@ -138,11 +144,11 @@ class BlockedActivity : Activity() {
             val attempts = state?.blockedCount ?: 0
             text = "$elapsedMin min focused   ·   $attempts blocked"
             textSize = 14f
-            setTypeface(typeface, Typeface.BOLD)
+            typeface = monoFace ?: Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setTextColor(Color.parseColor("#F2F2F7"))
             gravity = Gravity.CENTER
             setPadding(dp(12), dp(14), dp(12), dp(14))
-            background = roundedBackground("#28282B", 14f)
+            background = roundedBackground("#202224", 13f)
         }
         card.addView(stats, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             bottomMargin = dp(24)
@@ -150,8 +156,8 @@ class BlockedActivity : Activity() {
 
         val button = Button(this).apply {
             text = "Return to Home"
-            background = roundedBackground("#F5F5F7", 16f)
-            setTextColor(Color.parseColor("#111113"))
+            background = roundedBackground("#E01F27", 17f)
+            setTextColor(Color.WHITE)
             setAllCaps(false)
             textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
@@ -166,6 +172,7 @@ class BlockedActivity : Activity() {
             textSize = 14f
             setTextColor(Color.parseColor("#8E8E93"))
             gravity = Gravity.CENTER
+            typeface = monoFace
             setPadding(0, dp(22), 0, 0)
         }
         card.addView(hint)

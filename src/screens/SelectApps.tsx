@@ -159,44 +159,47 @@ export function SelectApps() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 32,
+    paddingTop: 18,
     flex: 1,
   },
   title: {
-    fontSize: 27,
-    fontWeight: '800',
-    paddingHorizontal: 30,
+    fontFamily: 'BricolageGrotesque',
+    fontSize: 30,
+    fontWeight: '400',
+    letterSpacing: -1.4,
+    paddingHorizontal: 22,
     marginBottom: 20,
   },
   searchInput: {
     height: 58,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 13,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 20,
     fontSize: 16,
     fontWeight: '600',
-    marginHorizontal: 30,
+    marginHorizontal: 22,
     marginBottom: 16,
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 30,
+    paddingHorizontal: 22,
   },
   emptyText: {
     fontSize: 16,
     fontWeight: '500',
   },
   listContent: {
-    paddingHorizontal: 30,
+    paddingHorizontal: 22,
     paddingBottom: 20,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 1,
+    minHeight: 60,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   appIcon: {
     width: 36,
@@ -208,7 +211,7 @@ const styles = StyleSheet.create({
   },
   appIconText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   appLabel: {
     flex: 1,
@@ -224,19 +227,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   footer: {
-    paddingHorizontal: 30,
-    paddingBottom: 34,
+    paddingHorizontal: 22,
+    paddingBottom: 24,
     paddingTop: 16,
   },
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

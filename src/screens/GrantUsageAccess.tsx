@@ -13,7 +13,6 @@ export function GrantUsageAccess() {
   const { colors } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<OnboardingStackParamList>>();
   const obTint = colors.accent + '24';
-  const successTint = '#22c55e' + '24';
 
   const [hasAccess, setHasAccess] = useState(false);
   const [requested, setRequested] = useState(false);
@@ -47,8 +46,8 @@ export function GrantUsageAccess() {
       
       <View style={styles.content}>
         {hasAccess ? (
-          <View style={[styles.iconBox, { backgroundColor: successTint, borderColor: '#22c55e' }]}>
-            <Icon name="check" size={44} color="#22c55e" />
+          <View style={[styles.iconBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Icon name="check" size={40} color={colors.text} />
           </View>
         ) : (
           <View style={[styles.iconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>
@@ -88,9 +87,9 @@ export function GrantUsageAccess() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 30,
-    paddingTop: 32,
-    paddingBottom: 34,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
   content: {
     flex: 1,
@@ -106,14 +105,15 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   title: {
+    fontFamily: 'BricolageGrotesque',
     fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1.19,
-    lineHeight: 36,
+    fontWeight: '400',
+    letterSpacing: -1.8,
+    lineHeight: 38,
   },
   body: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '400',
     lineHeight: 26,
     marginTop: 16,
   },
@@ -125,13 +125,13 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });

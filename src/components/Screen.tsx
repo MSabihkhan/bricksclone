@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, SafeAreaView, ViewProps, Platform } from 'react-native';
+import { View, StyleSheet, ViewProps } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface ScreenProps extends ViewProps {}
@@ -21,7 +22,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? 8 : 8,
-    paddingBottom: 28,
+    paddingTop: 12,
+    paddingBottom: 0,
   },
 });

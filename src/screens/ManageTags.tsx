@@ -7,6 +7,7 @@ import { db } from '../db';
 import { Tag } from '../db/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { LOCATIONS, validateBrickName, isTagIdInputValid, modeLabel } from '../utils/onboarding';
+import { BrickMark } from '../components/BrickMark';
 
 export function ManageTags() {
   const { colors } = useTheme();
@@ -87,8 +88,6 @@ export function ManageTags() {
     ]);
   };
 
-  const getLocIcon = (key: string | null) => LOCATIONS.find(l => l.key === key)?.icon || 'radio';
-
   const renderModalContent = () => {
     if (!isEditing && step === 'id') {
       const valid = isTagIdInputValid(tagId);
@@ -164,7 +163,10 @@ export function ManageTags() {
   return (
     <Screen style={{ paddingHorizontal: 0 }}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>My Bricks</Text>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>My Bricks</Text>
+          <Text style={[styles.headerSub, { color: colors.muted }]}>The physical keys to your focus.</Text>
+        </View>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add Brick" style={[styles.plusCircle, { backgroundColor: colors.accent }]} onPress={openCreate}>
           <Icon name="plus" size={22} color="#fff" />
         </TouchableOpacity>
@@ -173,9 +175,7 @@ export function ManageTags() {
       <ScrollView contentContainerStyle={styles.scrollPad}>
         {tags.length === 0 ? (
           <View style={styles.emptyCenter}>
-            <View style={[styles.emptyIconBox, { backgroundColor: colors.accent + '14' }]}>
-              <Icon name="radio" size={44} color={colors.accent} />
-            </View>
+            <BrickMark size={82} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No Bricks yet</Text>
             <Text style={[styles.emptySub, { color: colors.muted }]}>Tap the + to register your first Brick.</Text>
           </View>
@@ -184,12 +184,10 @@ export function ManageTags() {
             {tags.map(t => {
               return (
                 <TouchableOpacity key={t.id} style={[styles.row, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => openEdit(t)}>
-                  <View style={[styles.rowIconBox, { backgroundColor: colors.card2 }]}>
-                    <Icon name={getLocIcon(t.location)} size={22} color={colors.accent} />
-                  </View>
+                  <BrickMark size={52} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowName, { color: colors.text }]}>{t.name}</Text>
-                    <Text style={[styles.rowMeta, { color: colors.muted }]}>{modeLabel(t.mode)} · Global blocked list</Text>
+                    <Text style={[styles.rowMeta, { color: colors.muted }]}>{modeLabel(t.mode)} · Tap to edit</Text>
                   </View>
                   <Icon name="chevron" size={20} color={colors.faint} />
                 </TouchableOpacity>
@@ -209,25 +207,26 @@ export function ManageTags() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 22, paddingBottom: 16 },
-  headerTitle: { fontSize: 28, fontWeight: '800', letterSpacing: -0.03 * 28 },
-  plusCircle: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 18, paddingHorizontal: 22, paddingBottom: 24 },
+  headerTitle: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.8 },
+  headerSub: { fontSize: 13, marginTop: 4 },
+  plusCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   scrollPad: { paddingHorizontal: 22, paddingBottom: 40 },
   
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, gap: 14 },
+  row: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, gap: 14, minHeight: 84 },
   rowIconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  rowName: { fontSize: 16, fontWeight: '800' },
-  rowMeta: { fontSize: 12, fontWeight: '500', marginTop: 2 },
+  rowName: { fontSize: 16, fontWeight: '700' },
+  rowMeta: { fontFamily: 'IBMPlexMono-Regular', fontSize: 11, marginTop: 5 },
   
   emptyCenter: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   emptyIconBox: { width: 88, height: 88, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
+  emptyTitle: { fontFamily: 'BricolageGrotesque', fontSize: 24, fontWeight: '400', marginTop: 24, marginBottom: 8 },
   emptySub: { fontSize: 14, fontWeight: '500' },
 
   modalScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 22 },
-  modalCard: { borderRadius: 24, borderWidth: 1, padding: 22 },
-  modalTitle: { fontSize: 24, fontWeight: '800' },
-  input: { width: '100%', height: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 18, fontSize: 18, fontWeight: '800' },
+  modalCard: { borderRadius: 24, borderWidth: StyleSheet.hairlineWidth, padding: 22 },
+  modalTitle: { fontFamily: 'BricolageGrotesque', fontSize: 28, fontWeight: '400', letterSpacing: -1.2 },
+  input: { width: '100%', height: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 18, fontSize: 17, fontWeight: '600' },
   hint: { fontSize: 14, fontWeight: '500', marginTop: 8 },
   label11: { fontSize: 11, fontWeight: '800', letterSpacing: 0.14 * 11, marginTop: 20, marginBottom: 12 },
   grid3: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

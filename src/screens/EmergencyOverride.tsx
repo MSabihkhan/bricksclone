@@ -68,27 +68,33 @@ export function EmergencyOverride() {
   return (
     <View style={styles.scrim}>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.handle, { backgroundColor: colors.faint }]} />
         <TouchableOpacity style={[styles.closeBtn, { backgroundColor: colors.card2 }]} onPress={() => navigation.goBack()}>
           <Icon name="x" size={20} color={colors.muted} />
         </TouchableOpacity>
 
         {step === 'wait' && (
           <View style={styles.content}>
-            <Text style={[styles.title, { color: colors.text }]}>Are you sure?</Text>
+            <Text style={[styles.kicker, { color: colors.faint }]}>FOCUS IS STILL ACTIVE</Text>
+            <Text style={[styles.title, { color: colors.text }]}>End session early?</Text>
             <Text style={[styles.body, { color: colors.muted }]}>
-              Ending early will break your streak and let distractions back in.
+              Blocked apps will be available again. Your session will be recorded as ended early.
             </Text>
-            <Text style={[styles.countdown, { color: colors.accent }]}>
-              Continue in 0{seconds}
+            <TouchableOpacity style={[styles.keepBtn, { backgroundColor: colors.accent }]} onPress={() => navigation.goBack()}>
+              <Text style={styles.keepText}>Keep focusing</Text>
+            </TouchableOpacity>
+            <Text style={[styles.countdown, { color: colors.muted }]}>
+              END SESSION AVAILABLE IN 0{seconds}
             </Text>
           </View>
         )}
 
         {step === 'hold' && (
           <View style={styles.content}>
-            <Text style={[styles.title, { color: colors.text }]}>Still sure?</Text>
+            <Text style={[styles.kicker, { color: colors.faint }]}>CONFIRM ENDING</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Hold to end focus</Text>
             <Text style={[styles.body, { color: colors.muted }]}>
-              Tap and hold the button to confirm.
+              Keep holding until the bar is full. This prevents an accidental tap.
             </Text>
             <TouchableOpacity 
               activeOpacity={1}
@@ -97,19 +103,19 @@ export function EmergencyOverride() {
               style={[styles.holdBtn, { backgroundColor: colors.card2 }]}
             >
               <Animated.View style={[styles.holdFill, { backgroundColor: colors.accent, width: holdWidth }]} />
-              <Text style={[styles.holdText, { color: colors.text }]}>Hold to end session</Text>
+              <Text style={styles.holdText}>Hold to end session</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {step === 'done' && (
           <View style={styles.content}>
-            <View style={[styles.checkCircle, { backgroundColor: colors.green }]}>
+            <View style={[styles.checkCircle, { backgroundColor: colors.card2 }]}>
               <Icon name="check" size={32} color="#fff" />
             </View>
-            <Text style={[styles.title, { color: colors.text }]}>Session over</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Session ended</Text>
             <Text style={[styles.body, { color: colors.muted }]}>
-              You've earned this break.
+              Your focus time has been saved.
             </Text>
             <TouchableOpacity style={[styles.homeBtn, { backgroundColor: colors.accent }]} onPress={onReturnHome}>
               <Text style={styles.homeBtnText}>Return home</Text>
@@ -122,17 +128,21 @@ export function EmergencyOverride() {
 }
 
 const styles = StyleSheet.create({
-  scrim: { flex: 1, backgroundColor: 'rgba(15,17,21,0.85)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', borderRadius: 24, borderWidth: 1, padding: 26, position: 'relative' },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', justifyContent: 'flex-end' },
+  card: { width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 34, position: 'relative' },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', opacity: 0.5, marginBottom: 20 },
   closeBtn: { position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
-  content: { alignItems: 'center', marginTop: 10 },
-  title: { fontSize: 24, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
-  body: { fontSize: 14, fontWeight: '500', textAlign: 'center', marginBottom: 30, lineHeight: 21 },
-  countdown: { fontSize: 18, fontWeight: '700', fontVariant: ['tabular-nums'], textAlign: 'center' },
-  holdBtn: { width: '100%', height: 56, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  content: { alignItems: 'stretch', marginTop: 8 },
+  kicker: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.6, marginBottom: 12, textAlign: 'center' },
+  title: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.6, marginBottom: 12, textAlign: 'center' },
+  body: { fontSize: 14, fontWeight: '400', textAlign: 'center', marginBottom: 26, lineHeight: 21, paddingHorizontal: 10 },
+  keepBtn: { height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  keepText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  countdown: { fontFamily: 'IBMPlexMono-Regular', fontSize: 10, letterSpacing: 0.3, textAlign: 'center', marginTop: 18 },
+  holdBtn: { width: '100%', height: 56, borderRadius: 17, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  holdText: { fontSize: 15, fontWeight: '800', zIndex: 1 },
+  holdText: { color: '#fff', fontSize: 15, fontWeight: '700', zIndex: 1 },
   checkCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  homeBtn: { width: '100%', height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  homeBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' }
+  homeBtn: { width: '100%', height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  homeBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' }
 });

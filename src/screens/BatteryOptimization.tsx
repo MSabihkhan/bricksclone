@@ -112,8 +112,8 @@ export function BatteryOptimization() {
 
       {exemption && (
         <View style={styles.successRow}>
-          <Icon name="check" size={20} color="#22c55e" />
-          <Text style={{ color: '#22c55e', fontWeight: '600', marginLeft: 8 }}>
+          <Icon name="check" size={20} color={colors.text} />
+          <Text style={{ color: colors.text, fontWeight: '600', marginLeft: 8 }}>
             Battery optimization is off for Bricks
           </Text>
         </View>
@@ -131,9 +131,9 @@ export function BatteryOptimization() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 30,
-    paddingTop: 32,
-    paddingBottom: 34,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 24,
   },
   scroll: {
     flexGrow: 1,
@@ -149,14 +149,15 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   title: {
+    fontFamily: 'BricolageGrotesque',
     fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -1.19,
-    lineHeight: 36,
+    fontWeight: '400',
+    letterSpacing: -1.8,
+    lineHeight: 38,
   },
   body: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '400',
     lineHeight: 26,
     marginTop: 16,
   },
@@ -194,13 +195,13 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 56,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });
