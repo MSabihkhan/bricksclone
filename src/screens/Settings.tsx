@@ -94,6 +94,13 @@ export function Settings() {
           </Card>
         </View>
         <View style={styles.section}>
+          <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>RITUALS</Text>
+          <Card padding={0} radius={20} style={styles.clipped}>
+            <Row icon="bell" label="Prayer reminder" value="Local" onPress={() => navigation.navigate('PrayerReminder')} />
+            <Row icon="zap" label="Coming soon" value="7 ideas" onPress={() => navigation.navigate('ComingSoon')} last />
+          </Card>
+        </View>
+        <View style={styles.section}>
           <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>APPEARANCE</Text>
           <Card padding={14} radius={20}><SegmentedControl options={[{ label: 'Dark', value: 'dark' }, { label: 'Light', value: 'light' }]} value={appearance} onChange={value => setAppearance(value as ColorMode)} /></Card>
         </View>
@@ -104,7 +111,7 @@ export function Settings() {
             <Row icon="info" label="About Bricks" onPress={() => navigation.navigate('About')} last />
           </Card>
         </View>
-        <Text style={[styles.version, { color: theme.colors.faint }]}>BRICKS  ·  VERSION 1.1.0</Text>
+        <Text style={[styles.version, { color: theme.colors.faint }]}>BRICKS  ·  VERSION 1.2.0</Text>
       </ScrollView>
     </Screen>
   );

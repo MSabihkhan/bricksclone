@@ -350,6 +350,26 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
+    fun schedulePrayerReminder(hour: Double, minute: Double, promise: Promise) {
+        try {
+            PrayerReminderScheduler.schedule(reactContext, hour.toInt().coerceIn(0, 23), minute.toInt().coerceIn(0, 59))
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject(e)
+        }
+    }
+
+    @ReactMethod
+    fun cancelPrayerReminder(promise: Promise) {
+        try {
+            PrayerReminderScheduler.cancel(reactContext)
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject(e)
+        }
+    }
+
+    @ReactMethod
     fun addListener(eventName: String) {
         // Keep: Required for RN built in Event Emitter Calls.
     }

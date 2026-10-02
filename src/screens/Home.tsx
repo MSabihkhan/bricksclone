@@ -15,9 +15,13 @@ import type { Tag } from '../db/types';
 import { HomeStackParamList } from '../navigation/types';
 import { getFocusBars, getTodayStats, TodayStats } from '../services/stats/statsService';
 import type { BarDatum } from '../services/stats/statsService';
+import type { Session } from '../db/types';
 import { useNfcSessionStart } from '../hooks/useNfcSessionStart';
 import { durationLabel, modeLabel } from '../utils/onboarding';
 import { formatToday } from './homeHeaderModel';
+import { ROUTINES, RoutineType } from '../features/rituals';
+import { RitualSheet } from '../components/RitualSheet';
+import { OutcomeSheet } from '../components/OutcomeSheet';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList>;
 
@@ -38,6 +42,11 @@ export function Home() {
   const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
   const [weekBars, setWeekBars] = useState<BarDatum[]>([]);
   const [todaySessions, setTodaySessions] = useState(0);
+  const [routineType, setRoutineType] = useState<RoutineType>('study');
+  const [ritualOpen, setRitualOpen] = useState(false);
+  const [nextStep, setNextStep] = useState<string | null>(null);
+  const [pendingOutcome, setPendingOutcome] = useState<Session | null>(null);
+  const [dismissedOutcomeId, setDismissedOutcomeId] = useState<number | null>(null);
 
   useEffect(() => {
     hydrate().catch(() => {});
@@ -70,17 +79,28 @@ export function Home() {
     return () => { mounted = false; };
   }, []));
 
-  const beginSession = useCallback(async (tagId: string) => {
+  useEffect(() => {
+    if (machine !== 'idle') return;
+    Promise.all([db.sessions.getPendingOutcome(), db.sessions.listSessions()]).then(([pending, sessions]) => {
+      setPendingOutcome(pending && pending.id !== dismissedOutcomeId ? pending : null);
+      setNextStep(sessions.find(session => session.nextStep?.trim())?.nextStep ?? null);
+    }).catch(() => {});
+  }, [dismissedOutcomeId, machine]);
+
+  const beginSession = useCallback(async (tagId: string, intention: string) => {
     try {
-      await startSession(tagId);
+      await startSession(tagId, { routineType, intention });
+      setRitualOpen(false);
     } catch (error) {
       Alert.alert('Could not start focus', error instanceof Error ? error.message : String(error));
     }
-  }, [startSession]);
+  }, [routineType, startSession]);
 
   const handleRegistered = useCallback(async (tagId: string) => {
-    if (useFocusStore.getState().machine !== 'active') await beginSession(tagId);
-  }, [beginSession]);
+    if (useFocusStore.getState().machine === 'active') return;
+    setSelectedId(tagId);
+    setRitualOpen(true);
+  }, []);
 
   useNfcSessionStart({
     onRegistered: handleRegistered,
@@ -106,6 +126,18 @@ export function Home() {
           </Pressable>
         </View>
 
+        <Text style={styles.sectionLabel}>Choose a ritual</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ritualRail} style={styles.ritualRailOuter}>
+          {ROUTINES.map(routine => {
+            const active = routine.id === routineType;
+            return (
+              <Pressable key={routine.id} onPress={() => setRoutineType(routine.id)} style={[styles.ritualChip, active && styles.ritualChipActive]} accessibilityRole="radio" accessibilityState={{ checked: active }}>
+                <Text style={[styles.ritualText, active && styles.ritualTextActive]}>{routine.shortLabel}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
         <Text style={styles.sectionLabel}>Next session</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeRail} style={styles.modeRailOuter}>
           {tags.map(tag => {
@@ -129,7 +161,7 @@ export function Home() {
           )}
         </ScrollView>
 
-        <Button label={selected ? (starting ? 'Starting…' : `Start ${modeLabel(selected.mode)}`) : 'Connect a Brick'} onPress={() => selected ? beginSession(selected.id) : navigation.navigate('AddBrick')} disabled={starting} />
+        <Button label={selected ? `Set ${ROUTINES.find(routine => routine.id === routineType)?.shortLabel.toLowerCase()} intention` : 'Connect a Brick'} onPress={() => selected ? setRitualOpen(true) : navigation.navigate('AddBrick')} disabled={starting} />
         <View style={styles.tapHint}>
           <Icon name="radio" size={15} color={theme.colors.muted} />
           <Text style={styles.tapHintText}>{selected ? `or tap ${selected.name}` : 'or tap an unregistered Brick'}</Text>
@@ -155,6 +187,18 @@ export function Home() {
           <Text style={styles.statusText}>Nothing blocked right now</Text>
         </View>
       </ScrollView>
+      <RitualSheet visible={ritualOpen} routineType={routineType} nextStep={nextStep} busy={starting} onClose={() => setRitualOpen(false)} onStart={intention => selected && beginSession(selected.id, intention)} />
+      <OutcomeSheet
+        session={pendingOutcome}
+        onSkip={() => { if (pendingOutcome) setDismissedOutcomeId(pendingOutcome.id); setPendingOutcome(null); }}
+        onSave={(outcome, next) => {
+          if (!pendingOutcome) return;
+          db.sessions.saveOutcome(pendingOutcome.id, { outcome, nextStep: next }).then(() => {
+            setNextStep(next || null);
+            setPendingOutcome(null);
+          }).catch(() => {});
+        }}
+      />
     </Screen>
   );
 }
@@ -166,6 +210,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   date: { color: theme.colors.text, fontSize: 14, fontWeight: '500' },
   headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
   sectionLabel: { color: theme.colors.text, fontSize: 14, fontWeight: '500', marginBottom: 10 },
+  ritualRailOuter: { marginHorizontal: -22, marginBottom: 24 },
+  ritualRail: { paddingHorizontal: 22, gap: 8 },
+  ritualChip: { height: 42, borderRadius: 13, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.card2, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border },
+  ritualChipActive: { backgroundColor: theme.colors.text, borderColor: theme.colors.text },
+  ritualText: { color: theme.colors.text, fontSize: 13, fontWeight: '600' },
+  ritualTextActive: { color: theme.colors.bg },
   modeRailOuter: { marginHorizontal: -22, marginBottom: 20 },
   modeRail: { paddingHorizontal: 22, gap: 12 },
   modeCard: { width: 176, height: 208, borderRadius: 24, padding: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'space-between' },

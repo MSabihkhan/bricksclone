@@ -15,13 +15,18 @@ export class SessionRepository {
       endedVia: row.ended_via ? String(row.ended_via) : null,
       strict: Number(row.strict),
       apps: JSON.parse(String(row.apps || '[]')),
+      routineType: String(row.routine_type || 'study'),
+      intention: row.intention ? String(row.intention) : null,
+      outcome: row.outcome ? String(row.outcome) as Session['outcome'] : null,
+      nextStep: row.next_step ? String(row.next_step) : null,
+      laterNote: row.later_note ? String(row.later_note) : null,
     };
   }
 
-  async startSession(input: Omit<Session, 'id' | 'endTime' | 'durationSec' | 'endedVia'>): Promise<number> {
+  async startSession(input: Omit<Session, 'id' | 'endTime' | 'durationSec' | 'endedVia' | 'outcome' | 'nextStep' | 'laterNote' | 'routineType' | 'intention'> & Partial<Pick<Session, 'routineType' | 'intention'>>): Promise<number> {
     const result = await this.driver.execute(
-      `INSERT INTO sessions (tag_id, start_time, planned_end_time, strict, apps) VALUES (?, ?, ?, ?, ?)`,
-      [input.tagId, input.startTime, input.plannedEndTime ?? null, input.strict, JSON.stringify(input.apps)]
+      `INSERT INTO sessions (tag_id, start_time, planned_end_time, strict, apps, routine_type, intention) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [input.tagId, input.startTime, input.plannedEndTime ?? null, input.strict, JSON.stringify(input.apps), input.routineType ?? 'study', input.intention ?? null]
     );
     if (!result.insertId) throw new Error('Failed to insert session');
     return result.insertId;
@@ -56,5 +61,25 @@ export class SessionRepository {
       [start, end]
     );
     return rows.map(r => this.mapRowToSession(r));
+  }
+
+  async getPendingOutcome(): Promise<Session | undefined> {
+    const row = await this.driver.get(
+      `SELECT * FROM sessions
+       WHERE end_time IS NOT NULL AND ended_via != 'start_failed' AND intention IS NOT NULL AND TRIM(intention) != '' AND outcome IS NULL
+       ORDER BY end_time DESC LIMIT 1`
+    );
+    return row ? this.mapRowToSession(row) : undefined;
+  }
+
+  async saveOutcome(id: number, input: { outcome: NonNullable<Session['outcome']>; nextStep: string }): Promise<void> {
+    await this.driver.execute(
+      'UPDATE sessions SET outcome = ?, next_step = ? WHERE id = ?',
+      [input.outcome, input.nextStep.trim() || null, id]
+    );
+  }
+
+  async saveLaterNote(id: number, note: string): Promise<void> {
+    await this.driver.execute('UPDATE sessions SET later_note = ? WHERE id = ?', [note.trim() || null, id]);
   }
 }

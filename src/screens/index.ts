@@ -17,3 +17,5 @@ export * from './ManageBlockedApps';
 export * from './EmergencyHistory';
 export * from './About';
 export * from './EmergencyOverride';
+export * from './PrayerReminder';
+export * from './ComingSoon';

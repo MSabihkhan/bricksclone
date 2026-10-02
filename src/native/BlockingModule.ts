@@ -60,6 +60,8 @@ const moduleImpl = raw
       requestOverlayPermission: (): Promise<void> => raw.requestOverlayPermission(),
       openOemSettings: (oem: string, screen: string): Promise<void> => raw.openOemSettings(oem, screen),
       getInstalledApps: (): Promise<InstalledApp[]> => raw.getInstalledApps(),
+      schedulePrayerReminder: (hour: number, minute: number): Promise<void> => raw.schedulePrayerReminder(hour, minute),
+      cancelPrayerReminder: (): Promise<void> => raw.cancelPrayerReminder(),
     }
   : {
       startBlocking: stub,
@@ -81,6 +83,8 @@ const moduleImpl = raw
       requestOverlayPermission: stub,
       openOemSettings: stub,
       getInstalledApps: stub,
+      schedulePrayerReminder: stub,
+      cancelPrayerReminder: stub,
     };
 
 export const BlockingModule = moduleImpl;

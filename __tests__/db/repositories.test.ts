@@ -118,6 +118,26 @@ describe('Repositories', () => {
       const outside = await repo.sessionsBetween(2000, 3000);
       expect(outside).toHaveLength(0);
     });
+
+    it('records ritual intention, parked note, and outcome', async () => {
+      const repo = new SessionRepository(driver);
+      const sessionId = await repo.startSession({
+        tagId: 'tag-1', startTime: 1000, strict: 1, apps: [],
+        routineType: 'study', intention: 'Solve 10 questions',
+      });
+      await repo.saveLaterNote(sessionId, 'Email the tutor');
+      await repo.endSession(sessionId, { endedVia: 'nfc', durationSec: 1200, endTime: 2200 });
+
+      expect((await repo.getPendingOutcome())?.id).toBe(sessionId);
+      await repo.saveOutcome(sessionId, { outcome: 'partial', nextStep: 'Finish questions 8-10' });
+
+      const saved = await repo.getSessionById(sessionId);
+      expect(saved).toMatchObject({
+        routineType: 'study', intention: 'Solve 10 questions', outcome: 'partial',
+        nextStep: 'Finish questions 8-10', laterNote: 'Email the tutor',
+      });
+      expect(await repo.getPendingOutcome()).toBeUndefined();
+    });
   });
 
   describe('BlockedAttemptRepository', () => {

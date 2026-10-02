@@ -4,6 +4,7 @@ import type { Session } from '../db/types';
 import { blockingEngine } from '../services/blocking/blockingEngine';
 import type { EnforcementHealth, SessionEndReason } from '../services/blocking/blockingEngine';
 import { computeStreakDays } from '../services/stats/statsService';
+import type { RoutineType } from '../features/rituals';
 
 export interface FocusState {
   machine: 'idle' | 'active';
@@ -16,7 +17,7 @@ export interface FocusState {
   liveBlocked: number;
   timerTick: number;
   hydrate: () => Promise<void>;
-  startSession: (tagId: string) => Promise<void>;
+  startSession: (tagId: string, ritual?: { routineType: RoutineType; intention: string }) => Promise<void>;
   endSession: (via: SessionEndReason) => Promise<void>;
   refreshEnforcementHealth: () => Promise<void>;
 }
@@ -95,7 +96,7 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
     }
   },
 
-  startSession: async (tagId: string) => {
+  startSession: async (tagId: string, ritual) => {
     if (_get().machine === 'active' || _get().starting) {
       throw new Error('A focus session is already active or starting');
     }
@@ -103,7 +104,7 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
     try {
       const apps = await db.blockedApps.listBlockedApps();
       const appIds = apps.map((a) => a.packageName);
-      await blockingEngine.startFocusSession({ tagId, apps: appIds });
+      await blockingEngine.startFocusSession({ tagId, apps: appIds, ...ritual });
 
       const session = await db.sessions.getActiveSession();
 

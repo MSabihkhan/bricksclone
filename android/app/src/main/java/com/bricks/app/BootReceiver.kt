@@ -17,6 +17,7 @@ class BootReceiver : BroadcastReceiver() {
                     context.startService(serviceIntent)
                 }
             }
+            PrayerReminderScheduler.restore(context)
         }
     }
 }

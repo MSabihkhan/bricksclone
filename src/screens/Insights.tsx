@@ -44,6 +44,7 @@ export function Insights() {
   const [modes, setModes] = useState<Array<{ mode: string; label: string; completed: number; total: number; pct: number }>>([]);
   const [average, setAverage] = useState(0);
   const [endedEarly, setEndedEarly] = useState(0);
+  const [outcomes, setOutcomes] = useState({ done: 0, recorded: 0, planned: 0, nextStep: '' });
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
@@ -63,6 +64,14 @@ export function Insights() {
       setModes(nextModes);
       setAverage(nextAverage);
       setEndedEarly(sessions.filter(session => session.endedVia === 'override').length);
+      const planned = sessions.filter(session => !!session.intention?.trim());
+      const recorded = planned.filter(session => !!session.outcome);
+      setOutcomes({
+        done: recorded.filter(session => session.outcome === 'done').length,
+        recorded: recorded.length,
+        planned: planned.length,
+        nextStep: sessions.find(session => session.nextStep?.trim())?.nextStep ?? '',
+      });
     }).catch(() => {});
     return () => { mounted = false; };
   }, [period]));
@@ -92,6 +101,15 @@ export function Insights() {
           ))}
         </View>
         <Text style={styles.chartNote}>{longest && longest.value > 0 ? `${longest.label} was the longest at ${formatDuration(longest.value)}.` : 'No completed focus sessions in this period yet.'}</Text>
+
+        <View style={styles.ledger}>
+          <View style={styles.ledgerTop}>
+            <Text style={styles.ledgerTitle}>Outcome ledger</Text>
+            <Text style={styles.ledgerValue}>{outcomes.done}/{outcomes.planned}</Text>
+          </View>
+          <Text style={styles.ledgerBody}>{outcomes.planned === 0 ? 'Set a concrete intention before focus to start your ledger.' : `${outcomes.done} planned ${outcomes.done === 1 ? 'task' : 'tasks'} done · ${outcomes.recorded} outcomes recorded`}</Text>
+          {outcomes.nextStep ? <Text style={styles.nextStep}>NEXT · {outcomes.nextStep}</Text> : null}
+        </View>
 
         <Text style={styles.sectionTitle}>By mode</Text>
         <View>
@@ -131,6 +149,12 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   chartBarCurrent: { backgroundColor: theme.colors.accent },
   chartLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11 },
   chartNote: { color: theme.colors.muted, fontSize: 11, lineHeight: 17, marginTop: 10 },
+  ledger: { backgroundColor: theme.colors.card, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, padding: 17, marginTop: 24 },
+  ledgerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  ledgerTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
+  ledgerValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Medium', fontSize: 18 },
+  ledgerBody: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
+  nextStep: { color: theme.colors.accent, fontFamily: 'IBMPlexMono-Medium', fontSize: 10, lineHeight: 15, marginTop: 12 },
   sectionTitle: { color: theme.colors.text, fontSize: 14, marginTop: 28, marginBottom: 10 },
   empty: { color: theme.colors.muted, fontSize: 13, paddingVertical: 20 },
   modeRow: { borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: 12 },

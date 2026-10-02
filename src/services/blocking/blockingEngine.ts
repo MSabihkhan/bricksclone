@@ -2,6 +2,7 @@ import { db } from '../../db';
 import { Session } from '../../db/types';
 import { reducer, SessionState } from '../../state/sessionMachine';
 import { BlockingModule, addAttemptListener } from '../../native/BlockingModule';
+import type { RoutineType } from '../../features/rituals';
 
 const MAX_SESSION_SEC = 24 * 60 * 60;
 export type SessionEndReason = 'nfc' | 'timer' | 'override';
@@ -11,7 +12,7 @@ export function clampDurationSec(sec: number): number {
   return Math.max(0, Math.min(sec, MAX_SESSION_SEC));
 }
 
-async function startFocusSession(params: { tagId: string; apps: string[] }): Promise<{ sessionId: number; state: 'active' }> {
+async function startFocusSession(params: { tagId: string; apps: string[]; routineType?: RoutineType; intention?: string }): Promise<{ sessionId: number; state: 'active' }> {
   const activeSession = await db.sessions.getActiveSession();
   if (activeSession) {
     throw new Error('A focus session is already active');
@@ -48,6 +49,8 @@ async function startFocusSession(params: { tagId: string; apps: string[] }): Pro
     plannedEndTime,
     strict,
     apps: params.apps,
+    routineType: params.routineType ?? 'study',
+    intention: params.intention?.trim() || null,
   });
 
   try {

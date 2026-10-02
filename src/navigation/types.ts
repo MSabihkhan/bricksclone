@@ -23,6 +23,8 @@ export type SettingsStackParamList = {
   ManageBlockedApps: undefined;
   EmergencyHistory: undefined;
   About: undefined;
+  PrayerReminder: undefined;
+  ComingSoon: undefined;
 };
 
 export type MainTabsParamList = {

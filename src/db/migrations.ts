@@ -71,6 +71,13 @@ export const MIGRATIONS: string[] = [
     SELECT MIN(id) FROM blocked_attempts GROUP BY session_id, package_name, created_at
   );
   CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_blocked_attempt ON blocked_attempts (session_id, package_name, created_at);
+  `,
+  `
+  ALTER TABLE sessions ADD COLUMN routine_type TEXT NOT NULL DEFAULT 'study';
+  ALTER TABLE sessions ADD COLUMN intention TEXT;
+  ALTER TABLE sessions ADD COLUMN outcome TEXT CHECK(outcome IN ('done','partial','not_done'));
+  ALTER TABLE sessions ADD COLUMN next_step TEXT;
+  ALTER TABLE sessions ADD COLUMN later_note TEXT;
   `
 ];
 

@@ -25,6 +25,11 @@ export interface Session {
   endedVia: string | null;
   strict: number;
   apps: string[];
+  routineType: string;
+  intention: string | null;
+  outcome: 'done' | 'partial' | 'not_done' | null;
+  nextStep: string | null;
+  laterNote: string | null;
 }
 
 export interface BlockedAttempt {

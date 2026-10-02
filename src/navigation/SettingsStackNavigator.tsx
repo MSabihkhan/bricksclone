@@ -1,7 +1,7 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SettingsStackParamList } from './types';
-import { Settings, ManageTags, ManageBlockedApps, EmergencyHistory, About } from '../screens';
+import { Settings, ManageTags, ManageBlockedApps, EmergencyHistory, About, PrayerReminder, ComingSoon } from '../screens';
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
@@ -13,6 +13,8 @@ export function SettingsStackNavigator() {
       <Stack.Screen name="ManageBlockedApps" component={ManageBlockedApps} />
       <Stack.Screen name="EmergencyHistory" component={EmergencyHistory} />
       <Stack.Screen name="About" component={About} />
+      <Stack.Screen name="PrayerReminder" component={PrayerReminder} />
+      <Stack.Screen name="ComingSoon" component={ComingSoon} />
     </Stack.Navigator>
   );
 }
