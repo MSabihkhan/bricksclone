@@ -1,195 +1,291 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { NavigationProp, useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Screen } from '../components/Screen';
-import { Button } from '../components/Button';
-import { BrickMark } from '../components/BrickMark';
-import { Icon } from '../components/Icon';
-import { Theme } from '../theme';
-import { useTheme } from '../theme/ThemeContext';
 import { useFocusStore } from '../state/useFocusStore';
+import { useFocusUi } from '../state/useFocusUi';
 import { FocusLock } from './FocusLock';
 import { db } from '../db';
-import type { Tag } from '../db/types';
-import { HomeStackParamList } from '../navigation/types';
-import { getFocusBars, getTodayStats, TodayStats } from '../services/stats/statsService';
-import type { BarDatum } from '../services/stats/statsService';
-import type { Session } from '../db/types';
+import type { Session, Tag } from '../db/types';
+import { HomeStackParamList, MainTabsParamList } from '../navigation/types';
 import { useNfcSessionStart } from '../hooks/useNfcSessionStart';
-import { durationLabel, modeLabel } from '../utils/onboarding';
+import { usePairScan } from '../hooks/usePairScan';
+import { durationLabel } from '../utils/onboarding';
 import { formatToday } from './homeHeaderModel';
-import { ROUTINES, RoutineType } from '../features/rituals';
-import { RitualSheet } from '../components/RitualSheet';
+import { OUTCOME_ROUTINE_TYPES, RoutineType } from '../features/rituals';
+import { HOME_RITUALS, homeRitual } from '../features/intentionIdeas';
 import { OutcomeSheet } from '../components/OutcomeSheet';
+import { BreathingReset } from '../components/BreathingReset';
+import { IntentionSheet } from '../components/IntentionSheet';
+import { ScanSheet } from '../components/ScanSheet';
+import { BrickStack } from '../components/BrickStack';
+import { FaslaMark } from '../components/FaslaMark';
+import { FocusBanner } from '../components/FocusBanner';
+import { faslaAlert } from '../components/FaslaDialog';
+import { useAutoTour, useWalkthroughTarget } from '../walkthrough/Walkthrough';
+import { readPermissions } from '../services/permissionsService';
+import { canBlock } from '../features/permissions';
+import { appsForBrick } from '../features/brickApps';
+import { bringToFront, cycle, orderByRecentUse, reconcileOrder } from '../features/brickStack';
+import { usePersonaEnabled } from '../hooks/usePersonaEnabled';
+import { usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Frame, Glyph, PillButton, RadialBg, RoundButton, Segmented, TAB_CLEARANCE, showToast } from '../ui/kit';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList>;
+type SheetKind = null | 'intention' | 'scanStart' | 'pair';
 
-function formatFocused(sec: number) {
-  const hours = Math.floor(sec / 3600);
-  const minutes = Math.floor((sec % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes} min`;
-}
+const HERO_BG = (pal: ReturnType<typeof usePalette>) => ({ cx: 0.5, cy: 0.4, rx: 1.2, ry: 0.9, stops: [[pal.c2A1012, 0], [pal.c150C0D, 0.55], [pal.c111113, 1]] as Array<[string, number]> });
 
+/** Home (Fasla Redesign v2). */
 export function Home() {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const pal = usePalette();
   const navigation = useNavigation<Nav>();
-  const { machine, starting, todayFocusSec, hydrate, startSession, endSession } = useFocusStore();
+  const { width } = useWindowDimensions();
+  const { machine, starting, hydrate, startSession, endSession, activeSession } = useFocusStore();
+  const minimized = useFocusUi(s => s.minimized);
+  const setMinimized = useFocusUi(s => s.setMinimized);
+  const personaOn = usePersonaEnabled();
+
   const [tags, setTags] = useState<Tag[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [appsCount, setAppsCount] = useState(0);
-  const [todayStats, setTodayStats] = useState<TodayStats | null>(null);
-  const [weekBars, setWeekBars] = useState<BarDatum[]>([]);
-  const [todaySessions, setTodaySessions] = useState(0);
+  const [order, setOrder] = useState<string[]>([]);
+  const [mainApps, setMainApps] = useState<string[]>([]);
   const [routineType, setRoutineType] = useState<RoutineType>('study');
-  const [ritualOpen, setRitualOpen] = useState(false);
   const [nextStep, setNextStep] = useState<string | null>(null);
   const [pendingOutcome, setPendingOutcome] = useState<Session | null>(null);
   const [dismissedOutcomeId, setDismissedOutcomeId] = useState<number | null>(null);
+  const [breathOpen, setBreathOpen] = useState(false);
+  const [blockingReady, setBlockingReady] = useState<boolean | null>(null);
+  const [sheet, setSheet] = useState<SheetKind>(null);
+  const [scanDone, setScanDone] = useState(false);
+  const [entering, setEntering] = useState(false);
+  const pendingIntention = useRef('');
+  const ritualTarget = useWalkthroughTarget('home.ritualPicker');
+  const brickTarget = useWalkthroughTarget('home.brickRail');
+  const startTarget = useWalkthroughTarget('home.startButton');
 
   useEffect(() => {
     hydrate().catch(() => {});
-    const subscription = AppState.addEventListener('change', state => {
-      if (state === 'active') hydrate().catch(() => {});
+    const sub = AppState.addEventListener('change', state => {
+      if (state !== 'active') return;
+      hydrate().catch(() => {});
+      // Coming back to fasla mid-session (e.g. "Back to focus" on the lock screen) lands on focus.
+      setMinimized(false);
     });
-    return () => subscription.remove();
-  }, [hydrate]);
+    return () => sub.remove();
+  }, [hydrate, setMinimized]);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    Promise.all([
-      db.tags.listTags(),
-      db.blockedApps.listBlockedApps(),
-      getTodayStats(),
-      getFocusBars('week'),
-    ]).then(async ([savedTags, apps, stats, bars]) => {
-      const now = Math.floor(Date.now() / 1000);
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const sessions = await db.sessions.sessionsBetween(Math.floor(start.getTime() / 1000), now);
-      if (!mounted) return;
-      setTags(savedTags);
-      setSelectedId(current => current && savedTags.some(tag => tag.id === current) ? current : savedTags[0]?.id ?? null);
-      setAppsCount(apps.length);
-      setTodayStats(stats);
-      setWeekBars(bars);
-      setTodaySessions(sessions.length);
-    }).catch(() => {});
+    readPermissions().then(p => { if (mounted) setBlockingReady(canBlock(p)); }).catch(() => {});
+    Promise.all([db.tags.listTags(), db.blockedApps.listBlockedApps(), db.sessions.listSessions()])
+      .then(([savedTags, apps, sessions]) => {
+        if (!mounted) return;
+        setTags(savedTags);
+        const startWith = useFocusUi.getState().startWith;
+        setOrder(current => {
+          const next = reconcileOrder(current, orderByRecentUse(savedTags, sessions));
+          return startWith && savedTags.some(t => t.id === startWith) ? bringToFront(next, startWith) : next;
+        });
+        setMainApps(apps.map(a => a.packageName));
+        if (startWith) { useFocusUi.getState().setStartWith(null); setSheet('intention'); }
+      }).catch(() => {});
     return () => { mounted = false; };
   }, []));
 
   useEffect(() => {
     if (machine !== 'idle') return;
-    Promise.all([db.sessions.getPendingOutcome(), db.sessions.listSessions()]).then(([pending, sessions]) => {
+    Promise.all([db.sessions.getPendingOutcome(OUTCOME_ROUTINE_TYPES), db.sessions.listSessions()]).then(([pending, sessions]) => {
       setPendingOutcome(pending && pending.id !== dismissedOutcomeId ? pending : null);
       setNextStep(sessions.find(session => session.nextStep?.trim())?.nextStep ?? null);
     }).catch(() => {});
   }, [dismissedOutcomeId, machine]);
 
   const beginSession = useCallback(async (tagId: string, intention: string) => {
+    setEntering(true);
+    setMinimized(false);
     try {
       await startSession(tagId, { routineType, intention });
-      setRitualOpen(false);
     } catch (error) {
-      Alert.alert('Could not start focus', error instanceof Error ? error.message : String(error));
+      setEntering(false);
+      faslaAlert('Could not start focus', error instanceof Error ? error.message : String(error));
     }
-  }, [routineType, startSession]);
+  }, [routineType, setMinimized, startSession]);
 
-  const handleRegistered = useCallback(async (tagId: string) => {
+  useEffect(() => {
+    if (!entering || machine !== 'active') return;
+    const id = setTimeout(() => setEntering(false), 1200);
+    return () => clearTimeout(id);
+  }, [entering, machine]);
+
+  // A tap on a known key starts focus. If the scan sheet is open, show "Locked in" first.
+  const sheetRef = useRef<SheetKind>(null);
+  sheetRef.current = sheet;
+  const handleRegistered = useCallback((tagId: string) => {
     if (useFocusStore.getState().machine === 'active') return;
-    setSelectedId(tagId);
-    setRitualOpen(true);
-  }, []);
+    setOrder(current => bringToFront(current, tagId));
+    const fromSheet = sheetRef.current === 'scanStart';
+    const intention = fromSheet ? pendingIntention.current : nextStep?.trim() ?? '';
+    if (!fromSheet) { beginSession(tagId, intention); return; }
+    setScanDone(true);
+    setTimeout(() => { setSheet(null); setScanDone(false); beginSession(tagId, intention); }, 750);
+  }, [beginSession, nextStep]);
 
   useNfcSessionStart({
     onRegistered: handleRegistered,
-    onUnregistered: () => navigation.navigate('AddBrick'),
+    onUnregistered: tagId => navigation.navigate('AddBrick', { tagId }),
     onEndTap: () => endSession('nfc'),
     registeredTagIds: tags.map(tag => tag.id),
   });
 
-  if (machine === 'active') return <FocusLock />;
+  const pairFound = usePairScan(sheet === 'pair', tagId => { setSheet(null); navigation.navigate('AddBrick', { tagId }); });
 
-  const selected = tags.find(tag => tag.id === selectedId) ?? tags[0];
-  const focusSec = todayStats?.focusSec ?? todayFocusSec;
-  const visibleBars = weekBars.slice(-7);
-  const maxBar = Math.max(1, ...visibleBars.map(bar => bar.value));
+  useAutoTour('home', machine === 'idle' && tags.length > 0);
+
+  // Session over: the design's toast, then (for study and work) the outcome question.
+  const wasActive = useRef(machine === 'active');
+  useEffect(() => {
+    const ended = wasActive.current && machine === 'idle';
+    wasActive.current = machine === 'active';
+    if (!ended) return;
+    setMinimized(false);
+    db.sessions.listSessions().then(sessions => {
+      const last = sessions.find(s => s.endTime !== null && s.endedVia !== 'start_failed');
+      if (!last) return;
+      const mins = Math.max(1, Math.round((last.durationSec ?? Math.max(0, (last.endTime ?? last.startTime) - last.startTime)) / 60));
+      showToast(`Session complete · ${mins} min focused`);
+    }).catch(() => {});
+  }, [machine, setMinimized]);
+
+  const focusRunning = machine === 'active';
+  if (focusRunning && !minimized) return <FocusLock onMinimize={() => setMinimized(true)} animateIn={entering} />;
+
+  const stackTags = order.map(id => tags.find(tag => tag.id === id)).filter((tag): tag is Tag => !!tag);
+  const selected = stackTags[0] ?? tags[0];
+  const runningKey = tags.find(tag => tag.id === activeSession?.tagId);
+  const paired = tags.length > 0;
+  const setupNeeded = blockingReady === false || mainApps.length === 0;
+  const banner = focusRunning || setupNeeded;
+  const multi = stackTags.length > 1;
+  const heroInner = width - 40;
+  const cardWidth = Math.min(heroInner - 40, multi ? (banner ? 216 : 264) : banner ? 240 : 300);
+  const ritual = homeRitual(routineType);
+  const settingsNav = () => navigation.getParent<NavigationProp<MainTabsParamList>>();
+
+  const openStartScan = (intention: string) => { pendingIntention.current = intention; setScanDone(false); setSheet('scanStart'); };
+  const primary = () => {
+    if (focusRunning) { setMinimized(false); return; }
+    if (selected) setSheet('intention');
+    else { setScanDone(false); setSheet('pair'); }
+  };
+  const startTrouble = () => faslaAlert(
+    'Start without your key?',
+    `Use this if ${selected?.name ?? 'your key'} isn’t nearby or NFC isn’t working. You can still end with your key, or with End early.`,
+    [{ text: 'Cancel', style: 'cancel' }, { text: 'Start now', onPress: () => { setSheet(null); if (selected) beginSession(selected.id, pendingIntention.current); } }],
+  );
+  const pairTrouble = () => faslaAlert(
+    'Can’t find the key?',
+    'Check that NFC is on, then hold the top of your phone flat on the card for a second. Cases thicker than a few millimetres can get in the way.',
+  );
+  const keyMeta = selected
+    ? `${appsForBrick(selected, mainApps).length || 'No'} apps · ${durationLabel(selected.duration)}${selected.strict ? ' · Strict' : ''}${multi ? ` · ${stackTags.length} keys` : ''}`
+    : '';
 
   return (
-    <Screen style={styles.screen}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <Text style={styles.date}>{formatToday(new Date())}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Open settings" hitSlop={12} onPress={() => navigation.getParent()?.navigate('SettingsTab' as never)} style={styles.headerButton}>
-            <Icon name="settings" size={21} color={theme.colors.text} />
-          </Pressable>
+    <Frame>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: TAB_CLEARANCE }}>
+        <View style={{ height: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ gap: 2 }}>
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0 }}>{formatToday(new Date())}</Text>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, letterSpacing: -0.52, color: pal.cF5F5F2, lineHeight: 30 }}>Ready to focus?</Text>
+          </View>
+          <RoundButton icon="gear" label="Settings" kind="solid" iconSize={20} onPress={() => settingsNav()?.navigate('SettingsTab', { screen: 'Settings' })} />
         </View>
 
-        <Text style={styles.sectionLabel}>Choose a ritual</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ritualRail} style={styles.ritualRailOuter}>
-          {ROUTINES.map(routine => {
-            const active = routine.id === routineType;
-            return (
-              <Pressable key={routine.id} onPress={() => setRoutineType(routine.id)} style={[styles.ritualChip, active && styles.ritualChipActive]} accessibilityRole="radio" accessibilityState={{ checked: active }}>
-                <Text style={[styles.ritualText, active && styles.ritualTextActive]}>{routine.shortLabel}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <Text style={styles.sectionLabel}>Next session</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modeRail} style={styles.modeRailOuter}>
-          {tags.map(tag => {
-            const active = tag.id === selected?.id;
-            return (
-              <Pressable key={tag.id} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`Select ${modeLabel(tag.mode)}`} onPress={() => setSelectedId(tag.id)} style={({ pressed }) => [styles.modeCard, active && styles.modeCardActive, pressed && styles.pressed]}>
-                <BrickMark size={38} style={active ? styles.activeMark : undefined} />
-                <View>
-                  <Text style={[styles.modeName, active && styles.modeActiveText]}>{modeLabel(tag.mode)}</Text>
-                  <Text style={[styles.modeMeta, active && styles.modeActiveText]}>{durationLabel(tag.duration).toUpperCase()}</Text>
-                  <Text style={[styles.modeMeta, active && styles.modeActiveText]}>{appsCount} APPS BLOCKED</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-          {tags.length === 0 && (
-            <Pressable style={styles.emptyMode} onPress={() => navigation.navigate('AddBrick')}>
-              <BrickMark size={38} />
-              <Text style={styles.emptyModeTitle}>Connect your first Brick</Text>
-            </Pressable>
-          )}
-        </ScrollView>
-
-        <Button label={selected ? `Set ${ROUTINES.find(routine => routine.id === routineType)?.shortLabel.toLowerCase()} intention` : 'Connect a Brick'} onPress={() => selected ? setRitualOpen(true) : navigation.navigate('AddBrick')} disabled={starting} />
-        <View style={styles.tapHint}>
-          <Icon name="radio" size={15} color={theme.colors.muted} />
-          <Text style={styles.tapHintText}>{selected ? `or tap ${selected.name}` : 'or tap an unregistered Brick'}</Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryTop}>
-            <View>
-              <Text style={styles.summaryValue}>{formatFocused(focusSec)}</Text>
-              <Text style={styles.summaryLabel}>FOCUSED TODAY · {todaySessions} {todaySessions === 1 ? 'SESSION' : 'SESSIONS'}</Text>
+        {focusRunning ? <FocusBanner keyName={runningKey?.name} onOpen={() => setMinimized(false)} /> : null}
+        {!focusRunning && setupNeeded ? (
+          <Pressable
+            onPress={() => (blockingReady === false ? settingsNav()?.navigate('SettingsTab', { screen: 'Permissions' }) : settingsNav()?.navigate('SettingsTab', { screen: 'ManageBlockedApps' }))}
+            accessibilityRole="button"
+            style={({ pressed }) => ({ marginTop: 12, height: 64, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 18, borderRadius: 22, borderWidth: 1, borderColor: pal.c4A1A1D, backgroundColor: pressed ? pal.c24100F : pal.c1C0E10 })}
+          >
+            <Glyph name="info" size={20} color={pal.cFF5A5F} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 15, color: pal.cF5F5F2 }}>Blocking isn’t set up yet</Text>
+              <Text style={{ fontFamily: fonts.body, fontSize: 12, color: pal.cC9A3A5 }}>{blockingReady === false ? 'Sessions run, but apps won’t be blocked.' : 'Choose which apps to block.'}</Text>
             </View>
-            <Text style={styles.summaryPeriod}>Week</Text>
+            <Glyph name="chevron" size={16} color={pal.cC9A3A5} />
+          </Pressable>
+        ) : null}
+
+        {paired && selected ? (
+          <>
+            <View ref={brickTarget} collapsable={false} style={{ marginTop: 14, height: banner ? 200 : 268, borderRadius: 28, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              <RadialBg spec={HERO_BG(pal)} radius={28} />
+              <BrickStack
+                items={stackTags.map(tag => ({ id: tag.id, name: tag.name }))}
+                width={cardWidth}
+                topFace={personaOn ? 'idle' : null}
+                onCycle={() => setOrder(cycle)}
+                onBringToFront={id => { setOrder(current => bringToFront(current, id)); const k = tags.find(t => t.id === id); if (k) showToast(`Switched to ${k.name}`); }}
+                onLongPress={() => settingsNav()?.navigate('SettingsTab', { screen: 'ManageTags' })}
+                onPressTop={() => (focusRunning ? setMinimized(false) : openStartScan(nextStep?.trim() ?? ''))}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingHorizontal: 4 }}>
+              <View style={{ gap: 3, flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontFamily: fonts.displayBold, fontSize: 20, letterSpacing: -0.2, color: pal.cF5F5F2 }} numberOfLines={1}>{selected.name}</Text>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: pal.c3DDC84 }} accessibilityLabel="Paired" />
+                </View>
+                <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0 }} numberOfLines={1}>{keyMeta}</Text>
+              </View>
+              <Pressable onPress={() => settingsNav()?.navigate('SettingsTab', { screen: 'ManageTags' })} accessibilityRole="button"
+                style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, height: 36, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: pal.c2A2A2F, backgroundColor: pressed ? pal.c17171A : 'transparent' })}>
+                <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: pal.cF5F5F2 }}>Manage</Text>
+                <Glyph name="chevron" size={14} color={pal.cF5F5F2} />
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <Pressable ref={brickTarget} onPress={() => { setScanDone(false); setSheet('pair'); }} accessibilityRole="button"
+            style={{ marginTop: 14, height: 268, borderRadius: 28, borderWidth: 1, borderStyle: 'dashed', borderColor: pal.c3A2224, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, overflow: 'hidden' }}>
+            <RadialBg spec={{ cx: 0.5, cy: 0.3, rx: 1.2, ry: 0.9, stops: [[pal.c1E0E10, 0], [pal.c111113, 1]] }} radius={28} />
+            <FaslaMark size={64} />
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 22, letterSpacing: -0.44, color: pal.cF5F5F2 }}>Pair your key</Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 14, lineHeight: 20, color: pal.c9A9AA0, textAlign: 'center', maxWidth: 240 }}>Tap here, then hold your phone to it. Takes ten seconds.</Text>
+          </Pressable>
+        )}
+
+        <View style={{ marginTop: 18, gap: 10 }}>
+          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0, paddingHorizontal: 4 }}>This session is for</Text>
+          <View ref={ritualTarget} collapsable={false}>
+            <Segmented options={HOME_RITUALS.map(r => ({ value: r.id, label: r.label }))} value={routineType} onChange={setRoutineType} />
           </View>
-          <View style={styles.bars}>
-            {visibleBars.map((bar, index) => (
-              <View key={`${bar.label}-${index}`} style={[styles.bar, { height: 8 + Math.round((bar.value / maxBar) * 22) }, index === visibleBars.length - 1 && styles.barToday]} />
-            ))}
-          </View>
+          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c6E6E75, paddingHorizontal: 4 }}>{ritual.desc}</Text>
         </View>
 
-        <View style={styles.statusRow}>
-          <Icon name="lock" size={14} color={theme.colors.faint} />
-          <Text style={styles.statusText}>Nothing blocked right now</Text>
+        <View style={{ marginTop: 16, flexDirection: 'row', gap: 8 }}>
+          <Pressable onPress={() => setBreathOpen(true)} accessibilityRole="button" accessibilityLabel="Breathe first"
+            style={({ pressed }) => ({ width: 56, height: 56, borderRadius: 28, borderWidth: 1, borderColor: pal.c2A2A2F, backgroundColor: pressed ? pal.c1C1C20 : pal.c141417, alignItems: 'center', justifyContent: 'center' })}>
+            <Glyph name="moon" size={20} width={1.8} color={pal.cF5F5F2} />
+          </Pressable>
+          <View ref={startTarget} collapsable={false} style={{ flex: 1 }}>
+            <PillButton height={56} disabled={starting}
+              label={focusRunning ? 'Back to focus' : selected ? `Set ${ritual.label.toLowerCase()} intention` : 'Connect a key'}
+              onPress={primary} />
+          </View>
         </View>
       </ScrollView>
-      <RitualSheet visible={ritualOpen} routineType={routineType} nextStep={nextStep} busy={starting} onClose={() => setRitualOpen(false)} onStart={intention => selected && beginSession(selected.id, intention)} />
+
+      <IntentionSheet visible={sheet === 'intention'} routineType={routineType} keyName={selected?.name} nextStep={nextStep}
+        onClose={() => setSheet(null)} onContinue={openStartScan} />
+      <ScanSheet visible={sheet === 'scanStart'} scanFor="start" done={scanDone} keyName={selected?.name}
+        appsCount={selected ? appsForBrick(selected, mainApps).length : 0} onClose={() => setSheet(null)} onTrouble={startTrouble} />
+      <ScanSheet visible={sheet === 'pair'} scanFor="pair" done={pairFound} onClose={() => setSheet(null)} onTrouble={pairTrouble} />
+      <BreathingReset visible={breathOpen} onClose={() => setBreathOpen(false)} />
       <OutcomeSheet
-        session={pendingOutcome}
+        session={sheet ? null : pendingOutcome}
         onSkip={() => { if (pendingOutcome) setDismissedOutcomeId(pendingOutcome.id); setPendingOutcome(null); }}
         onSave={(outcome, next) => {
           if (!pendingOutcome) return;
@@ -199,44 +295,6 @@ export function Home() {
           }).catch(() => {});
         }}
       />
-    </Screen>
+    </Frame>
   );
 }
-
-const makeStyles = (theme: Theme) => StyleSheet.create({
-  screen: { paddingHorizontal: 0 },
-  scroll: { paddingHorizontal: 22, paddingBottom: 34, flexGrow: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 34 },
-  date: { color: theme.colors.text, fontSize: 14, fontWeight: '500' },
-  headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
-  sectionLabel: { color: theme.colors.text, fontSize: 14, fontWeight: '500', marginBottom: 10 },
-  ritualRailOuter: { marginHorizontal: -22, marginBottom: 24 },
-  ritualRail: { paddingHorizontal: 22, gap: 8 },
-  ritualChip: { height: 42, borderRadius: 13, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.card2, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border },
-  ritualChipActive: { backgroundColor: theme.colors.text, borderColor: theme.colors.text },
-  ritualText: { color: theme.colors.text, fontSize: 13, fontWeight: '600' },
-  ritualTextActive: { color: theme.colors.bg },
-  modeRailOuter: { marginHorizontal: -22, marginBottom: 20 },
-  modeRail: { paddingHorizontal: 22, gap: 12 },
-  modeCard: { width: 176, height: 208, borderRadius: 24, padding: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'space-between' },
-  modeCardActive: { backgroundColor: theme.mode === 'dark' ? '#F7F7F5' : '#111113', borderColor: theme.mode === 'dark' ? '#F7F7F5' : '#111113' },
-  activeMark: { backgroundColor: theme.mode === 'dark' ? '#202224' : '#FFFFFF' },
-  modeName: { color: theme.colors.text, fontSize: 16, fontWeight: '600', marginBottom: 3 },
-  modeMeta: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 12, lineHeight: 17 },
-  modeActiveText: { color: theme.mode === 'dark' ? '#111113' : '#F7F7F5' },
-  emptyMode: { width: 220, height: 208, borderRadius: 24, padding: 18, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, justifyContent: 'space-between' },
-  emptyModeTitle: { color: theme.colors.text, fontSize: 16, fontWeight: '600' },
-  pressed: { transform: [{ scale: 0.985 }], opacity: 0.9 },
-  tapHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14 },
-  tapHintText: { color: theme.colors.muted, fontSize: 13, fontWeight: '400' },
-  summaryCard: { backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, padding: 18, marginTop: 'auto', minHeight: 124 },
-  summaryTop: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 16 },
-  summaryLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11, marginTop: 3 },
-  summaryPeriod: { color: theme.colors.text, fontSize: 13 },
-  bars: { height: 38, flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 12 },
-  bar: { flex: 1, minHeight: 8, borderRadius: 2, backgroundColor: theme.colors.card2 },
-  barToday: { backgroundColor: theme.colors.accent },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16 },
-  statusText: { color: theme.colors.muted, fontSize: 13 },
-});

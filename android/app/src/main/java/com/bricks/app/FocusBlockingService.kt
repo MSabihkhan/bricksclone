@@ -59,13 +59,10 @@ class FocusBlockingService : Service() {
             )
         }
 
-        var iconRes = resources.getIdentifier("ic_launcher", "mipmap", packageName)
-        if (iconRes == 0) iconRes = android.R.drawable.ic_lock_lock
-
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Focus session active")
-            .setContentText("$numApps apps blocked · tap your Brick to end")
-            .setSmallIcon(iconRes)
+            .setContentText("$numApps apps blocked · tap your key to end")
+            .setSmallIcon(R.drawable.ic_stat_fasla)
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

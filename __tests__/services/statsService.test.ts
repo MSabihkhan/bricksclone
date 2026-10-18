@@ -7,6 +7,7 @@ jest.mock('../../src/db', () => ({
   db: {
     sessions: {
       sessionsBetween: jest.fn(),
+      sessionsOverlapping: jest.fn(),
       listSessions: jest.fn(),
     },
     tags: {
@@ -63,7 +64,7 @@ describe('statsService', () => {
   describe('getPeriodStats', () => {
     it('sums sessions + attempts, calculates streak and goalPct capped', async () => {
       const now = Math.floor(Date.now() / 1000);
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
         { id: 1, startTime: now - 3600, durationSec: 1800, strict: 0, apps: [] },
         { id: 2, startTime: now - 7200, durationSec: 1800, strict: 0, apps: [] }
       ]);
@@ -90,34 +91,40 @@ describe('statsService', () => {
   });
 
   describe('getFocusBars', () => {
-    it('returns 12 buckets for day, sets isMax on highest', async () => {
+    it('returns 8 three-hour buckets for the full day, sets isMax on highest', async () => {
+      // Pinned: the day chart only covers time up to "now", so a real clock before 10am would
+      // leave these 10am sessions in the future.
+      jest.useFakeTimers().setSystemTime(new Date(2026, 9, 10, 15));
       const today = new Date();
       today.setHours(10, 0, 0, 0);
       const unix10am = Math.floor(today.getTime() / 1000);
       
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
         { id: 1, startTime: unix10am, durationSec: 1200 },
         { id: 2, startTime: unix10am, durationSec: 600 }
       ]);
       
       const bars = await getFocusBars('day');
-      expect(bars).toHaveLength(12);
-      // 10am is index 4 (6a, 7a, 8a, 9a, 10a)
-      expect(bars[4].value).toBe(1800);
-      expect(bars[4].isMax).toBe(true);
+      expect(bars).toHaveLength(8);
+      // 10am falls in the 9a block (index 3); both sessions overlap there in full
+      expect(bars[3].label).toBe('9a');
+      expect(bars[3].value).toBe(1800);
+      expect(bars[3].isMax).toBe(true);
       expect(bars[0].isMax).toBe(false);
+      jest.useRealTimers();
     });
     
     it('returns 7 buckets for week', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([]);
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([]);
       const bars = await getFocusBars('week');
       expect(bars).toHaveLength(7);
     });
 
-    it('returns 4 buckets for month', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([]);
+    it('returns real 7-day spans for the month', async () => {
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([]);
       const bars = await getFocusBars('month');
-      expect(bars).toHaveLength(4);
+      expect(bars[0].label).toBe('1–7');
+      expect(bars.length).toBeGreaterThanOrEqual(4);
     });
   });
 
@@ -137,7 +144,7 @@ describe('statsService', () => {
   describe('getTodayStats', () => {
     it('calculates today stats correctly', async () => {
       const now = Math.floor(Date.now() / 1000);
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
         { id: 1, startTime: now - 3600, durationSec: 1800 }
       ]);
       mockQuery.mockResolvedValue([{ count: 3 }]);
@@ -154,36 +161,40 @@ describe('statsService', () => {
   });
 
   describe('getPeriodComparison', () => {
-    it('calculates positive delta correctly', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValueOnce([
-        { durationSec: 200 }
-      ]).mockResolvedValueOnce([
-        { durationSec: 100 }
+    // Fixed clock: 3pm, so "today so far" is 15 hours long.
+    const at = (d: number, h: number) => Math.floor(new Date(2026, 9, d, h).getTime() / 1000);
+    beforeEach(() => { jest.useFakeTimers().setSystemTime(new Date(2026, 9, 10, 15)); });
+    afterEach(() => { jest.useRealTimers(); });
+
+    it('compares today so far with yesterday up to the same time', async () => {
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
+        { startTime: at(10, 9), durationSec: 200, endTime: at(10, 9) + 200, endedVia: 'nfc' },
+        { startTime: at(9, 9), durationSec: 100, endTime: at(9, 9) + 100, endedVia: 'nfc' },
+        // Yesterday evening is after "now" on yesterday's clock, so it must not count.
+        { startTime: at(9, 20), durationSec: 5000, endTime: at(9, 20) + 5000, endedVia: 'nfc' },
       ]);
       const cmp = await getPeriodComparison('day');
       expect(cmp.focusSec).toBe(200);
       expect(cmp.prevFocusSec).toBe(100);
-      expect(cmp.deltaPct).toBe(100); // (200 - 100)/100 * 100
-    });
-
-    it('returns 100 delta if prev is 0', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValueOnce([
-        { durationSec: 200 }
-      ]).mockResolvedValueOnce([]);
-      const cmp = await getPeriodComparison('day');
       expect(cmp.deltaPct).toBe(100);
     });
 
-    it('returns 0 delta when both periods are empty', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
-      const cmp = await getPeriodComparison('day');
-      expect(cmp.deltaPct).toBe(0);
+    it('gives no percentage when the previous period had no focus', async () => {
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
+        { startTime: at(10, 9), durationSec: 200, endTime: at(10, 9) + 200, endedVia: 'nfc' },
+      ]);
+      expect((await getPeriodComparison('day')).deltaPct).toBeNull();
+    });
+
+    it('gives no percentage when both periods are empty', async () => {
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([]);
+      expect((await getPeriodComparison('day')).deltaPct).toBeNull();
     });
   });
 
   describe('getCompletionByMode', () => {
     it('groups by mode and calculates pct', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
         { tagId: 't1', endedVia: 'override', durationSec: 600, endTime: 123 },
         { tagId: 't1', endedVia: 'nfc', durationSec: 600, endTime: 456 },
         { tagId: 't2', endedVia: 'timer', durationSec: 300, endTime: 456 }
@@ -209,19 +220,20 @@ describe('statsService', () => {
 
   describe('getBestDay', () => {
     it('returns max day and minutes', async () => {
-      const today = new Date();
-      const todayUnix = Math.floor(today.getTime() / 1000);
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
+      jest.useFakeTimers().setSystemTime(new Date(2026, 9, 10, 15));
+      const todayUnix = Math.floor(new Date(2026, 9, 10, 9).getTime() / 1000);
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
         { startTime: todayUnix, durationSec: 1200 },
         { startTime: todayUnix - 86400 * 2, durationSec: 600 }
       ]);
       const best = await getBestDay('week');
       expect(best?.label).toBe('Today');
       expect(best?.minutes).toBe(20);
+      jest.useRealTimers();
     });
 
     it('returns null when no sessions', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([]);
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([]);
       const best = await getBestDay('week');
       expect(best).toBeNull();
     });
@@ -229,7 +241,7 @@ describe('statsService', () => {
 
   describe('getAvgSessionSec', () => {
     it('calculates average for ended sessions', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([
         { durationSec: 600, endedVia: 'nfc', startTime: 0, endTime: 600 },
         { durationSec: 1200, endedVia: 'timer', startTime: 0, endTime: 1200 },
         { durationSec: null, endedVia: null, startTime: 0, endTime: null }
@@ -239,7 +251,7 @@ describe('statsService', () => {
     });
     
     it('returns 0 for no ended sessions', async () => {
-      (db.sessions.sessionsBetween as jest.Mock).mockResolvedValue([]);
+      (db.sessions.sessionsOverlapping as jest.Mock).mockResolvedValue([]);
       const avg = await getAvgSessionSec('week');
       expect(avg).toBe(0);
     });

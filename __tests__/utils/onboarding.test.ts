@@ -34,7 +34,7 @@ describe('onboarding utils', () => {
   });
 
   it('BRICK_MODES has expected keys', () => {
-    expect(BRICK_MODES.map(m => m.key)).toEqual(['deep', 'wind', 'custom']);
+    expect(BRICK_MODES.map(m => m.key)).toEqual(['deep', 'study', 'wind', 'custom']);
   });
 
   it('MODE_PRESETS defines deep and wind correctly', () => {
@@ -48,6 +48,7 @@ describe('onboarding utils', () => {
 
   it('modeLabel returns proper string', () => {
     expect(modeLabel('deep')).toBe('Deep Work');
+    expect(modeLabel('study')).toBe('Study');
     expect(modeLabel('wind')).toBe('Wind Down');
     expect(modeLabel('custom')).toBe('Custom');
     expect(modeLabel('unknown')).toBe('Custom');

@@ -85,11 +85,11 @@ android {
 
     namespace "com.bricks.app"
     defaultConfig {
-        applicationId "com.bricks.app"
+        applicationId "com.fasla.focus"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 5
-        versionName "1.2.0"
+        versionCode 7
+        versionName "1.4.0"
     }
     signingConfigs {
         debug {

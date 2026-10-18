@@ -1,5 +1,6 @@
 import { create, type StoreApi } from 'zustand';
 import { db } from '../db';
+import { appsForBrick } from '../features/brickApps';
 import type { Session } from '../db/types';
 import { blockingEngine } from '../services/blocking/blockingEngine';
 import type { EnforcementHealth, SessionEndReason } from '../services/blocking/blockingEngine';
@@ -102,8 +103,8 @@ export const useFocusStore = create<FocusState>((set, _get) => ({
     }
     set({ starting: true });
     try {
-      const apps = await db.blockedApps.listBlockedApps();
-      const appIds = apps.map((a) => a.packageName);
+      const [mainList, tag] = await Promise.all([db.blockedApps.listBlockedApps(), db.tags.getTagById(tagId)]);
+      const appIds = appsForBrick(tag, mainList.map((a) => a.packageName));
       await blockingEngine.startFocusSession({ tagId, apps: appIds, ...ritual });
 
       const session = await db.sessions.getActiveSession();

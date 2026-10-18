@@ -1,63 +1,28 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { Pressable, Text, View } from 'react-native';
+import { RED, usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
 
 interface OnboardingHeaderProps {
   onSkip?: () => void;
 }
 
+/** Onboarding header (Fasla Redesign v2): f tile, "fasla." wordmark, Skip. */
 export function OnboardingHeader({ onSkip }: OnboardingHeaderProps) {
-  const { colors } = useTheme();
-
+  const pal = usePalette();
   return (
-    <View style={styles.container}>
-      <View style={styles.leftGroup}>
-        <View style={[styles.logoBox, { backgroundColor: colors.accent }]}>
-          <View style={styles.innerSquare} />
+    <View style={{ height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} accessibilityRole="header" accessibilityLabel="fasla">
+        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: pal.c17171A, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontFamily: fonts.display, fontSize: 24, lineHeight: 30, color: RED }}>f</Text>
         </View>
-        <Text style={[styles.logoText, { color: colors.text }]}>bricks</Text>
+        <Text style={{ fontFamily: fonts.display, fontSize: 22, letterSpacing: -0.88, color: pal.cF5F5F2 }}>fasla<Text style={{ color: RED }}>.</Text></Text>
       </View>
-      {onSkip && (
-        <TouchableOpacity onPress={onSkip}>
-          <Text style={[styles.skipText, { color: colors.muted }]}>Skip</Text>
-        </TouchableOpacity>
-      )}
+      {onSkip ? (
+        <Pressable onPress={onSkip} hitSlop={8} accessibilityRole="button" style={{ height: 40, paddingHorizontal: 14, justifyContent: 'center' }}>
+          {({ pressed }) => <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pressed ? pal.cF5F5F2 : pal.c9A9AA0 }}>Skip</Text>}
+        </Pressable>
+      ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  leftGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 9,
-  },
-  innerSquare: {
-    width: 8,
-    height: 8,
-    backgroundColor: '#fff',
-    borderRadius: 2,
-  },
-  logoText: {
-    fontFamily: 'BricolageGrotesque',
-    fontSize: 18,
-    fontWeight: '600',
-    letterSpacing: -0.5,
-  },
-  skipText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});

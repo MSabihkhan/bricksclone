@@ -1,0 +1,17 @@
+<resources>
+
+    <!-- Android 12+ draws its own launch splash (the app icon on a background) before the app
+         starts. Matching both to the fasla tile makes it read as the first frame of the
+         launch animation: a red f on #1C1C1E. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/launch_background</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/launch_background</item>
+    </style>
+
+    <style name="NfcUnlockTheme" parent="android:style/Theme.NoDisplay">
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
+</resources>

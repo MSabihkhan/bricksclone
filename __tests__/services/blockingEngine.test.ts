@@ -58,6 +58,18 @@ describe('blockingEngine', () => {
       }));
     });
 
+    it('hands the intention and ritual to native so the lock screen can show them', async () => {
+      (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
+      (db.sessions.startSession as jest.Mock).mockResolvedValue(124);
+
+      await blockingEngine.startFocusSession({ tagId: 'tag1', apps: ['pkg1'], routineType: 'work', intention: 'Send the draft' });
+
+      expect(BlockingModule.startBlocking).toHaveBeenCalledWith(expect.objectContaining({
+        intention: 'Send the draft',
+        ritual: 'Work',
+      }));
+    });
+
     it('defaults to Brick-only even when the Brick has a legacy duration', async () => {
       (db.sessions.getActiveSession as jest.Mock).mockResolvedValue(null);
       (db.sessions.startSession as jest.Mock).mockResolvedValue(125);
@@ -202,14 +214,14 @@ describe('blockingEngine', () => {
 
       const res = await blockingEngine.recoverActiveSession();
 
-      expect(BlockingModule.startBlocking).toHaveBeenCalledWith({
+      expect(BlockingModule.startBlocking).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 111,
         tagId: undefined,
         blockedPackages: ['pkg3'],
         strict: true,
         startedAt: 54321,
         plannedEndTime: null
-      });
+      }));
       expect(res.state).toEqual({ state: 'active' });
     });
 
@@ -269,14 +281,14 @@ describe('blockingEngine', () => {
       const res = await blockingEngine.recoverActiveSession();
 
       expect(BlockingModule.stopBlocking).toHaveBeenCalled();
-      expect(BlockingModule.startBlocking).toHaveBeenCalledWith({
+      expect(BlockingModule.startBlocking).toHaveBeenCalledWith(expect.objectContaining({
         sessionId: 100,
         tagId: undefined,
         blockedPackages: ['current'],
         strict: false,
         startedAt: 20,
         plannedEndTime: null,
-      });
+      }));
       expect(res.enforcementHealth).toBe('active');
     });
 

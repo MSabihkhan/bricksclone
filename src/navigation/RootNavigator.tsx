@@ -6,7 +6,7 @@ import { OnboardingNavigator } from './OnboardingNavigator';
 import { MainTabsNavigator } from './MainTabsNavigator';
 import { ModalNavigator } from './ModalNavigator';
 import { isOnboarded } from '../state/onboarding';
-import { Splash } from '../components/Splash';
+import { LaunchSplash } from '../components/LaunchSplash';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -19,7 +19,7 @@ export function RootNavigator() {
       .catch(() => setStatus('new'));
   }, []);
 
-  if (status === 'loading') return <Splash />;
+  if (status === 'loading') return <LaunchSplash animated={false} />;
 
   return (
     <NavigationContainer>

@@ -9,15 +9,15 @@ export interface OemInfo {
 }
 
 export const OEM_SUMMARY: Record<OemId, string> = {
-  xiaomi: 'MIUI strictly limits background tasks. We need these exceptions to keep Bricks running.',
-  redmi: 'MIUI strictly limits background tasks. We need these exceptions to keep Bricks running.',
-  poco: 'MIUI strictly limits background tasks. We need these exceptions to keep Bricks running.',
+  xiaomi: 'MIUI strictly limits background tasks. We need these exceptions to keep fasla running.',
+  redmi: 'MIUI strictly limits background tasks. We need these exceptions to keep fasla running.',
+  poco: 'MIUI strictly limits background tasks. We need these exceptions to keep fasla running.',
   oppo: 'ColorOS aggressively kills background apps. We need these settings to stay active.',
   realme: 'Realme UI aggressively kills background apps. We need these settings to stay active.',
   vivo: 'FuntouchOS requires manual autostart permission to keep focus sessions active.',
   samsung: 'OneUI puts apps to sleep. We need unrestricted battery access to function.',
   google: 'Standard Android battery optimization may interrupt your focus sessions.',
-  generic: 'Battery optimization may prevent Bricks from maintaining active focus sessions.',
+  generic: 'Battery optimization may prevent fasla from maintaining active focus sessions.',
 };
 
 export function detectOem(manufacturer: string): OemInfo {
@@ -36,7 +36,7 @@ export function detectOem(manufacturer: string): OemInfo {
     id: 'generic',
     name: manufacturer || 'Android',
     isAggressive: false,
-    batterySteps: ['Disable battery optimization for Bricks'],
+    batterySteps: ['In the list that opens, switch to “All apps”', 'Find fasla and choose “Don’t optimise”'],
     autostartSteps: ['Enable notification access if prompted'],
   };
 }
@@ -47,7 +47,7 @@ function getXiaomiInfo(id: OemId, name: string): OemInfo {
     name,
     isAggressive: true,
     batterySteps: ['Go to Battery saver', 'Select "No restrictions"'],
-    autostartSteps: ['Find Bricks in the list', 'Enable Autostart switch'],
+    autostartSteps: ['Find fasla in the list', 'Enable Autostart switch'],
   };
 }
 
@@ -57,7 +57,7 @@ function getOppoInfo(id: OemId, name: string): OemInfo {
     name,
     isAggressive: true,
     batterySteps: ['Go to Battery usage', 'Allow background activity', 'Allow auto launch'],
-    autostartSteps: ['Find Bricks', 'Enable Startup'],
+    autostartSteps: ['Find fasla', 'Enable Startup'],
   };
 }
 
@@ -66,7 +66,7 @@ function getVivoInfo(id: OemId, name: string): OemInfo {
     id,
     name,
     isAggressive: true,
-    batterySteps: ['Go to Battery', 'Select High background power consumption', 'Enable for Bricks'],
+    batterySteps: ['Go to Battery', 'Select High background power consumption', 'Enable for fasla'],
     autostartSteps: ['Go to App settings', 'Enable Autostart'],
   };
 }
@@ -76,8 +76,8 @@ function getSamsungInfo(): OemInfo {
     id: 'samsung',
     name: 'Samsung',
     isAggressive: true,
-    batterySteps: ['Go to Battery settings', 'Select Unrestricted for Bricks'],
-    autostartSteps: ['Go to Memory', 'Exclude Bricks from auto clean'],
+    batterySteps: ['Go to Battery settings', 'Select Unrestricted for fasla'],
+    autostartSteps: ['Go to Memory', 'Exclude fasla from auto clean'],
   };
 }
 
@@ -86,7 +86,7 @@ function getGoogleInfo(): OemInfo {
     id: 'google',
     name: 'Google',
     isAggressive: false,
-    batterySteps: ['Go to App battery usage', 'Select Unrestricted'],
+    batterySteps: ['In the list that opens, switch to “All apps”', 'Find fasla and choose “Don’t optimise”'],
     autostartSteps: ['Standard Android autostart is handled automatically'],
   };
 }

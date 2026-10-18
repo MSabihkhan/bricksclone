@@ -78,6 +78,10 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE sessions ADD COLUMN outcome TEXT CHECK(outcome IN ('done','partial','not_done'));
   ALTER TABLE sessions ADD COLUMN next_step TEXT;
   ALTER TABLE sessions ADD COLUMN later_note TEXT;
+  `,
+  `
+  -- Per-key block list as a JSON array of package names. NULL = use the main list.
+  ALTER TABLE tags ADD COLUMN apps TEXT;
   `
 ];
 

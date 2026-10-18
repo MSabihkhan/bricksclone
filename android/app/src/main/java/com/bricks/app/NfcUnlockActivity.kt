@@ -25,7 +25,7 @@ class NfcUnlockActivity : Activity() {
             FocusCompletion.complete(applicationContext, active, "nfc")
             stopService(Intent(applicationContext, FocusBlockingService::class.java))
         } else {
-            Toast.makeText(this, "Use the Brick that started this focus session", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Use the key that started this focus session", Toast.LENGTH_SHORT).show()
         }
         finish()
         overridePendingTransition(0, 0)

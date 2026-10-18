@@ -1,10 +1,18 @@
+import { canBlock } from '../../features/permissions';
 import { db } from '../../db';
 import { Session } from '../../db/types';
 import { reducer, SessionState } from '../../state/sessionMachine';
 import { BlockingModule, addAttemptListener } from '../../native/BlockingModule';
+import { getRoutine } from '../../features/rituals';
 import type { RoutineType } from '../../features/rituals';
 
 const MAX_SESSION_SEC = 24 * 60 * 60;
+
+/** The key's name for the native lock screen; a missing name only loses that one line of text. */
+async function keyNameFor(tagId: string | null | undefined): Promise<string | null> {
+  if (!tagId) return null;
+  try { return (await db.tags.getTagById(tagId))?.name ?? null; } catch { return null; }
+}
 export type SessionEndReason = 'nfc' | 'timer' | 'override';
 export type EnforcementHealth = 'active' | 'degraded' | 'inactive';
 
@@ -24,8 +32,8 @@ async function startFocusSession(params: { tagId: string; apps: string[]; routin
     throw new Error('Invalid state transition');
   }
 
-  // Strict comes from the Brick that started the session, falling back to the global
-  // setting, so a "Wind Down" Brick is not locked down as hard as "Deep Work".
+  // Strict comes from the key that started the session, falling back to the global
+  // setting, so a "Wind Down" key is not locked down as hard as "Deep Work".
   let strict = 1;
   const tag = params.tagId ? await db.tags.getTagById(params.tagId) : undefined;
   if (tag) {
@@ -36,8 +44,8 @@ async function startFocusSession(params: { tagId: string; apps: string[]; routin
   }
 
   const startedAt = Math.floor(Date.now() / 1000);
-  // A missing value intentionally defaults to Brick-only. This prevents upgrades from
-  // silently ending a focus session at the Brick's legacy 50-minute duration.
+  // A missing value intentionally defaults to key-only. This prevents upgrades from
+  // silently ending a focus session at the key's legacy 50-minute duration.
   const sessionEndMode = await db.settings.get('session_end_mode');
   const durationMinutes = tag && tag.duration !== 'inf' ? Number(tag.duration) : NaN;
   const plannedEndTime = sessionEndMode === 'timer' && Number.isFinite(durationMinutes) && durationMinutes > 0
@@ -61,6 +69,9 @@ async function startFocusSession(params: { tagId: string; apps: string[]; routin
       strict: strict === 1,
       startedAt,
       plannedEndTime,
+      intention: params.intention ?? null,
+      ritual: getRoutine(params.routineType ?? 'study').shortLabel,
+      keyName: await keyNameFor(params.tagId),
     });
   } catch (error) {
     await db.sessions.endSession(sessionId, {
@@ -192,6 +203,9 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
         strict: activeSession.strict === 1,
         startedAt: activeSession.startTime,
         plannedEndTime: activeSession.plannedEndTime ?? null,
+        intention: activeSession.intention,
+        ritual: getRoutine(activeSession.routineType).shortLabel,
+        keyName: await keyNameFor(activeSession.tagId),
       });
       restarted = true;
     } catch {
@@ -213,6 +227,9 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
           strict: activeSession.strict === 1,
           startedAt: activeSession.startTime,
           plannedEndTime: activeSession.plannedEndTime ?? null,
+        intention: activeSession.intention,
+        ritual: getRoutine(activeSession.routineType).shortLabel,
+        keyName: await keyNameFor(activeSession.tagId),
         });
       } catch {
         return { state: { state: 'active' }, activeSession, enforcementHealth: 'degraded' };
@@ -244,12 +261,13 @@ async function recoverActiveSession(): Promise<{ state: SessionState; activeSess
 
 async function checkEnforcementHealth(): Promise<EnforcementHealth> {
   try {
-    const [nativeActive, usage, accessibility] = await Promise.all([
+    const [nativeActive, usage, accessibility, overlay] = await Promise.all([
       BlockingModule.isBlockingActive(),
       BlockingModule.hasUsageAccess(),
       BlockingModule.isAccessibilityEnabled(),
+      BlockingModule.hasOverlayPermission().catch(() => false),
     ]);
-    return nativeActive && (usage || accessibility) ? 'active' : 'degraded';
+    return nativeActive && canBlock({ usage, accessibility, overlay }) ? 'active' : 'degraded';
   } catch {
     return 'degraded';
   }

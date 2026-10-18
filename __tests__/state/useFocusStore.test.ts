@@ -15,6 +15,9 @@ jest.mock('../../src/db', () => ({
     blockedAttempts: {
       recordAttempt: jest.fn().mockResolvedValue(null),
     },
+    tags: {
+      getTagById: jest.fn().mockResolvedValue(undefined),
+    },
   },
 }));
 
@@ -86,6 +89,12 @@ describe('useFocusStore', () => {
     expect(blockingEngine.endFocusSession).toHaveBeenCalledWith('nfc');
     expect(useFocusStore.getState().machine).toBe('idle');
     expect(useFocusStore.getState().activeSession).toBeNull();
+  });
+
+  it('startSession blocks the Brick’s own apps when it has a list', async () => {
+    (db.tags.getTagById as jest.Mock).mockResolvedValueOnce({ id: 'tag-2', apps: ['com.whatsapp'] });
+    await useFocusStore.getState().startSession('tag-2');
+    expect(blockingEngine.startFocusSession).toHaveBeenCalledWith(expect.objectContaining({ tagId: 'tag-2', apps: ['com.whatsapp'] }));
   });
 
   it('startSession attaches listener and records live attempts, endSession detaches', async () => {

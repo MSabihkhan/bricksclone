@@ -1,3 +1,6 @@
+import type { Tag } from '../db/types';
+import { durationLabel } from '../utils/onboarding';
+
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -25,4 +28,16 @@ export function relativeTime(unixSec: number, nowSec: number): string {
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
+}
+
+export type EndMode = 'brick' | 'timer';
+
+/**
+ * The two short facts that tell one key's setup apart from another's on the Home cards.
+ * Under the global "Key only" ending, a key's saved duration never applies, so it is
+ * not shown — showing "50 min" there would promise a time limit that won't happen.
+ */
+export function brickConfigLines(tag: Pick<Tag, 'duration' | 'strict'>, endMode: EndMode): [string, string] {
+  const ending = endMode === 'brick' || tag.duration === 'inf' ? 'Ends on tap' : `${durationLabel(tag.duration)} limit`;
+  return [ending, tag.strict === 1 ? 'Strict' : 'Flexible'];
 }

@@ -33,7 +33,7 @@ describe('Repositories', () => {
 
       await repo.registerTag(tag);
       let fetched = await repo.getTagById('tag-1');
-      expect(fetched).toEqual(tag);
+      expect(fetched).toEqual({ ...tag, apps: null });
 
       // Dedupe by id via INSERT OR REPLACE
       await repo.registerTag({ ...tag, name: 'Work 2' });
@@ -137,6 +137,49 @@ describe('Repositories', () => {
         nextStep: 'Finish questions 8-10', laterNote: 'Email the tutor',
       });
       expect(await repo.getPendingOutcome()).toBeUndefined();
+    });
+
+    it('finds sessions that ran into a range, not only ones that started in it', async () => {
+      const repo = new SessionRepository(driver);
+      const overnight = await repo.startSession({ tagId: 't', startTime: 900, strict: 1, apps: [] });
+      await repo.endSession(overnight, { endedVia: 'nfc', durationSec: 300, endTime: 1200 });
+      const before = await repo.startSession({ tagId: 't', startTime: 100, strict: 1, apps: [] });
+      await repo.endSession(before, { endedVia: 'nfc', durationSec: 100, endTime: 200 });
+
+      const ids = (await repo.sessionsOverlapping(1000, 2000)).map(x => x.id);
+      expect(ids).toContain(overnight);
+      expect(ids).not.toContain(before);
+    });
+
+    it('never asks for an outcome on a prayer session when filtered to graded rituals', async () => {
+      const repo = new SessionRepository(driver);
+      const prayerId = await repo.startSession({
+        tagId: 'tag-1', startTime: 3000, strict: 1, apps: [],
+        routineType: 'prayer', intention: 'Arrive and be present',
+      });
+      await repo.endSession(prayerId, { endedVia: 'timer', durationSec: 900, endTime: 3900 });
+
+      expect(await repo.getPendingOutcome(['study', 'work'])).toBeUndefined();
+      expect(await repo.getPendingOutcome([])).toBeUndefined();
+      // Unfiltered behaviour is unchanged for callers that want every session.
+      expect((await repo.getPendingOutcome())?.id).toBe(prayerId);
+    });
+  });
+
+  describe('per-Brick app lists', () => {
+    it('stores a Brick’s own apps and keeps them through other edits', async () => {
+      const repo = new TagRepository(driver);
+      await repo.registerTag({ id: 'B1', name: 'Desk', location: null, mode: 'deep', categories: {}, duration: '50', strict: 1, createdAt: 1 });
+      expect((await repo.getTagById('B1'))?.apps).toBeNull();
+
+      await repo.updateTag('B1', { apps: ['com.whatsapp'] });
+      await repo.updateTag('B1', { name: 'Study desk' });
+      const tag = await repo.getTagById('B1');
+      expect(tag?.name).toBe('Study desk');
+      expect(tag?.apps).toEqual(['com.whatsapp']);
+
+      await repo.updateTag('B1', { apps: null });
+      expect((await repo.getTagById('B1'))?.apps).toBeNull();
     });
   });
 

@@ -3,16 +3,17 @@ import { AppState } from 'react-native';
 import { nfcService, isRegisteredTag, normalizeTagId } from '../services/nfc';
 import type { NfcTag } from '../services/nfc/types';
 import { useFocusStore } from '../state/useFocusStore';
+import { useFocusUi } from '../state/useFocusUi';
 
 const TAP_COOLDOWN_MS = 4000;
 
 export interface NfcSessionHandlers {
-  /** A registered Brick was tapped while no session was running. */
+  /** A registered key was tapped while no session was running. */
   onRegistered: (tagId: string) => void;
   /** An unknown tag was tapped while no session was running. */
-  onUnregistered: () => void;
+  onUnregistered: (tagId: string) => void;
   /**
-   * A registered Brick was tapped during an active session — this is how a session ends.
+   * A registered key was tapped during an active session — this is how a session ends.
    * Omit to keep the previous behaviour of ignoring taps while locked.
    */
   onEndTap?: (tagId: string) => void;
@@ -20,7 +21,7 @@ export interface NfcSessionHandlers {
 }
 
 /**
- * Drives the whole Brick loop: tap to start, tap again to unlock.
+ * Drives the whole key loop: tap to start, tap again to unlock.
  *
  * The listener is re-armed whenever the session state flips so the same physical tap is
  * routed to the right handler, and the handlers are held in a ref so callers do not have to
@@ -47,6 +48,8 @@ export function useNfcSessionStart({
 
     const dispatch = (tag: NfcTag | null) => {
       if (!tag || unmounted) return;
+      // While a key is being paired, the pairing sheet owns the reader.
+      if (useFocusUi.getState().pairing) return;
       const current = handlers.current;
       const id = normalizeTagId(tag.id);
 
@@ -66,7 +69,7 @@ export function useNfcSessionStart({
       if (known) {
         current.onRegistered(id);
       } else {
-        current.onUnregistered();
+        current.onUnregistered(id);
       }
     };
 

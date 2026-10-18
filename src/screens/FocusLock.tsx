@@ -1,31 +1,58 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, BackHandler, Easing, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { NavigationProp, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/types';
-import { Theme } from '../theme';
-import { useTheme } from '../theme/ThemeContext';
 import { useFocusStore } from '../state/useFocusStore';
-import { Icon } from '../components/Icon';
-import { BrickMark } from '../components/BrickMark';
-import { Button } from '../components/Button';
 import { db } from '../db';
-import { modeLabel } from '../utils/onboarding';
 import { BlockingModule } from '../native/BlockingModule';
 import { getRoutine } from '../features/rituals';
+import { NotificationAccessSheet } from '../components/NotificationAccessSheet';
+import { BrickCard } from '../components/BrickCard';
+import { ScanSheet } from '../components/ScanSheet';
+import { usePersonaEnabled } from '../hooks/usePersonaEnabled';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { faslaAlert } from '../components/FaslaDialog';
+import { EASE_OUT, segment } from '../brand/launchTimeline';
+import { focusClock, focusCaption, parkedThoughts } from './focusLockModel';
+import { usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Frame, Glyph, LiveDot, PillButton, RadialBg, RoundButton, Toggle, showToast } from '../ui/kit';
 
-export function FocusLock() {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+interface Props {
+  /** Leave this screen for Home; the session keeps running. */
+  onMinimize: () => void;
+  /** Play the entrance animation (a session was just started in the app). */
+  animateIn?: boolean;
+}
+
+const ENTRANCE_MS = 900;
+
+/** Locked in (Fasla Redesign v2). */
+export function FocusLock({ onMinimize, animateIn = false }: Props) {
+  const pal = usePalette();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { timerTick, activeSession, endSession, enforcementHealth, refreshEnforcementHealth } = useFocusStore();
   const autoEndStarted = useRef(false);
   const [plannedSec, setPlannedSec] = useState<number | null>(null);
-  const [modeName, setModeName] = useState('Focus');
-  const [brickName, setBrickName] = useState('Brick');
+  const [keyName, setKeyName] = useState('your key');
   const [appLabels, setAppLabels] = useState<string[]>([]);
-  const [laterOpen, setLaterOpen] = useState(false);
-  const [laterNote, setLaterNote] = useState('');
+  const [parked, setParked] = useState<string[]>([]);
+  const [parkOpen, setParkOpen] = useState(false);
+  const [parkText, setParkText] = useState('');
+  const [access, setAccess] = useState<boolean | null>(null);
+  const [silenceOn, setSilenceOn] = useState(true);
+  const [heldCount, setHeldCount] = useState(0);
+  const [silenceSheet, setSilenceSheet] = useState(false);
+  const [endScan, setEndScan] = useState(false);
+  const personaOn = usePersonaEnabled();
+  const reduceMotion = useReducedMotion();
+
+  const poll = useCallback(() => {
+    BlockingModule.hasNotificationAccess().then(setAccess).catch(() => {});
+    BlockingModule.getSilenceEnabled().then(setSilenceOn).catch(() => {});
+    BlockingModule.getHeldNotificationCount().then(setHeldCount).catch(() => {});
+  }, []);
+  useEffect(() => { poll(); const id = setInterval(poll, 5000); return () => clearInterval(id); }, [poll]);
 
   useEffect(() => {
     let mounted = true;
@@ -35,21 +62,19 @@ export function FocusLock() {
     ]).then(([tag, apps]) => {
       if (!mounted) return;
       setPlannedSec(activeSession?.plannedEndTime ? Math.max(1, activeSession.plannedEndTime - activeSession.startTime) : null);
-      if (tag) {
-        setModeName(`${getRoutine(activeSession?.routineType ?? 'study').shortLabel} · ${modeLabel(tag.mode)}`);
-        setBrickName(tag.name);
-      }
-      setLaterNote(activeSession?.laterNote ?? '');
+      if (tag) setKeyName(tag.name);
+      setParked(parkedThoughts(activeSession?.laterNote ?? null));
       const labels = new Map(apps.map(app => [app.packageName, app.label]));
       setAppLabels((activeSession?.apps ?? []).map(pkg => labels.get(pkg) ?? pkg.split('.').pop() ?? pkg));
     }).catch(() => {});
     return () => { mounted = false; };
   }, [activeSession]);
 
+  // Back goes to Home rather than closing the app; the session keeps running.
   useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => backHandler.remove();
-  }, []);
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { onMinimize(); return true; });
+    return () => sub.remove();
+  }, [onMinimize]);
 
   useEffect(() => {
     refreshEnforcementHealth().catch(() => {});
@@ -57,149 +82,188 @@ export function FocusLock() {
     return () => clearInterval(id);
   }, [refreshEnforcementHealth]);
 
-  const elapsed = activeSession ? Math.max(0, Math.floor(Date.now() / 1000) - activeSession.startTime + timerTick * 0) : 0;
-  const isBrickOnly = plannedSec === null;
-  const remaining = isBrickOnly ? 0 : Math.max((plannedSec ?? 0) - elapsed, 0);
-  const progress = isBrickOnly ? 0 : Math.min(elapsed / Math.max(1, plannedSec ?? 1), 1);
+  const nowSec = Math.floor(Date.now() / 1000) + timerTick * 0;
+  const elapsed = activeSession ? Math.max(0, nowSec - activeSession.startTime) : 0;
+  const keyOnly = plannedSec === null;
+  const remaining = keyOnly ? 0 : Math.max((plannedSec ?? 0) - elapsed, 0);
 
   useEffect(() => {
-    if (isBrickOnly || remaining > 0 || !activeSession || autoEndStarted.current) return;
+    if (keyOnly || remaining > 0 || !activeSession || autoEndStarted.current) return;
     autoEndStarted.current = true;
     endSession('timer').catch(error => {
       autoEndStarted.current = false;
-      Alert.alert('Could not finish the session', error instanceof Error ? error.message : String(error));
+      faslaAlert('Could not finish the session', error instanceof Error ? error.message : String(error));
     });
-  }, [activeSession, endSession, isBrickOnly, remaining]);
+  }, [activeSession, endSession, keyOnly, remaining]);
 
-  const formatClock = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-    return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const endEarly = () => { setEndScan(false); navigation.navigate('ModalStack', { screen: 'EmergencyOverride' }); };
+  // "End early" lives behind the scan sheet for every session, so nobody is locked in without their key.
+  const endTrouble = () => faslaAlert(
+    'Can’t tap your key?',
+    `Hold the top of your phone flat on ${keyName} for a second. If it’s not with you, End early still works, after a short wait.`,
+    [{ text: 'Keep focusing', style: 'cancel' }, { text: 'End early', style: 'destructive', onPress: endEarly }],
+  );
+
+  const submitPark = () => {
+    const t = parkText.trim();
+    setParkText('');
+    setParkOpen(false);
+    if (!t || !activeSession) return;
+    const next = [...parked, t];
+    setParked(next);
+    db.sessions.saveLaterNote(activeSession.id, next.join('\n')).catch(() => {});
+    showToast('Parked for later');
   };
 
-  const endEarly = () => navigation.navigate('ModalStack', { screen: 'EmergencyOverride' });
+  const silenced = !!access && silenceOn;
+  const onSilence = (v: boolean) => {
+    if (!access) { setSilenceSheet(true); return; }
+    setSilenceOn(v);
+    BlockingModule.setSilenceEnabled(v).catch(() => {});
+    showToast(v ? 'Blocked apps silenced' : 'Notifications back on');
+  };
+
+  // ---- Entrance: the card drops in and tilts into place, then the rest settles in order. ----
+  const t = useRef(new Animated.Value(animateIn ? 0 : ENTRANCE_MS)).current;
+  useEffect(() => {
+    if (!animateIn || reduceMotion) { t.setValue(ENTRANCE_MS); return; }
+    Animated.timing(t, { toValue: ENTRANCE_MS, duration: ENTRANCE_MS, easing: Easing.linear, useNativeDriver: true }).start();
+  }, [animateIn, reduceMotion, t]);
+  const tr = (a: number, b: number, from: number, to: number) => t.interpolate({ ...segment(a, b, from, to, EASE_OUT), extrapolate: 'clamp' });
+  const rise = (a: number) => ({ opacity: tr(a, a + 300, 0, 1), transform: [{ translateY: tr(a, a + 300, 14, 0) }] });
+  const cardIn = {
+    opacity: tr(0, 260, 0, 1),
+    transform: [
+      { translateY: tr(0, 520, -28, 0) },
+      { scale: tr(0, 520, 0.86, 1) },
+      { rotate: tr(0, 620, 6, -4).interpolate({ inputRange: [-4, 6], outputRange: ['-4deg', '6deg'] }) },
+    ],
+  };
+
+  const mode = getRoutine(activeSession?.routineType ?? 'study').shortLabel;
+  const card = { borderRadius: 24, backgroundColor: pal.c17171A };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topRow}>
-        <View style={styles.identity}>
-          <Icon name="lock" size={13} color={theme.colors.text} />
-          <Text style={styles.identityText}>{modeName}</Text>
-        </View>
-        <View style={styles.identity}>
-          <BrickMark size={28} />
-          <Text style={styles.identityText}>{brickName}</Text>
-        </View>
-      </View>
-
-      {enforcementHealth === 'degraded' && (
-        <View style={styles.warning} accessibilityRole="alert">
-          <View style={styles.warningTitleRow}>
-            <Icon name="info" size={17} color={theme.colors.text} />
-            <Text style={styles.warningTitle}>Blocking has stopped</Text>
+    <Frame bg={<RadialBg spec={{ cx: 0.5, cy: 0.18, rx: 0.9, ry: 0.4, stops: [[pal.c241012, 0], [pal.c0B0B0D, 0.7]] }} />}>
+      <View style={{ height: 36, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 }}>
+          <RoundButton icon="chevronDown" label="Go to Home. Focus keeps running." size={36} kind="solid" iconSize={16} onPress={onMinimize} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 36, paddingHorizontal: 14, borderRadius: 999, backgroundColor: pal.c17171A, flexShrink: 1 }}>
+            <Glyph name="lock" size={14} color={pal.cF5F5F2} />
+            <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 14, color: pal.cF5F5F2, flexShrink: 1 }} numberOfLines={1}>{mode} · {keyName}</Text>
           </View>
-          <Text style={styles.warningText}>Accessibility or usage access was switched off, so blocked apps can open. Your session is still running.</Text>
-          <Button label="Turn it back on" onPress={() => BlockingModule.requestAccessibility().catch(() => {})} />
         </View>
-      )}
-
-      <View style={styles.timerArea}>
-        {activeSession?.intention ? <Text style={styles.intention}>{activeSession.intention}</Text> : null}
-        <Text style={styles.timer}>{formatClock(isBrickOnly ? elapsed : remaining)}</Text>
-        <Text style={styles.timerCaption}>{isBrickOnly ? 'Elapsed · ends with Brick' : 'Remaining'}</Text>
-        {!isBrickOnly && (
-          <>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
-            </View>
-            <View style={styles.progressLabels}>
-              <Text style={styles.dataLabel}>{formatClock(elapsed)} IN</Text>
-              <Text style={styles.dataLabel}>{formatClock(plannedSec ?? 0)}</Text>
-            </View>
-          </>
-        )}
+        <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8, height: 32, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: pal.c3A1A1C, backgroundColor: pal.c1A0D0E }, rise(150)]}>
+          <LiveDot size={7} />
+          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: pal.cFF8A8D }}>Locked in</Text>
+        </Animated.View>
       </View>
 
-      <View style={styles.appsArea}>
-        <Text style={styles.sectionTitle}>Held closed</Text>
-        <View style={styles.chips}>
-          {appLabels.map(label => <View key={label} style={styles.chip}><Text style={styles.chipText}>{label}</Text></View>)}
-          {appLabels.length === 0 && <Text style={styles.emptyText}>No apps selected</Text>}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Animated.View style={[{ height: 104, marginTop: 16, alignItems: 'center', justifyContent: 'center' }, cardIn]}>
+          <BrickCard width={144} face={personaOn ? 'session_started' : null} />
+        </Animated.View>
+
+        <View style={{ alignItems: 'center', marginTop: 14 }}>
+          <Animated.Text style={[{ fontFamily: fonts.monoMedium, fontSize: 72, letterSpacing: -3.6, lineHeight: 78, color: pal.cF5F5F2 }, rise(260)]}
+            accessibilityLabel={`${keyOnly ? 'Elapsed' : 'Remaining'} ${focusClock(keyOnly ? elapsed : remaining)}`}>
+            {focusClock(keyOnly ? elapsed : remaining)}
+          </Animated.Text>
+          <Animated.Text style={[{ fontFamily: fonts.body, fontSize: 14, color: pal.c9A9AA0, marginTop: 10, textAlign: 'center' }, rise(330)]}>
+            {focusCaption(keyOnly, keyName, activeSession?.plannedEndTime ?? null)}
+          </Animated.Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={() => setLaterOpen(true)} style={styles.laterAction}>
-          <Icon name="message" size={15} color={theme.colors.text} />
-          <Text style={styles.laterActionText}>{laterNote ? 'Edit saved thought' : 'Save distraction for later'}</Text>
+
+        {enforcementHealth === 'degraded' ? (
+          <View style={{ marginTop: 18, padding: 16, gap: 10, borderRadius: 22, borderWidth: 1, borderColor: pal.c4A1A1D, backgroundColor: pal.c1C0E10 }} accessibilityRole="alert">
+            <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 15, color: pal.cF5F5F2 }}>Blocking has stopped</Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: pal.cC9A3A5 }}>Accessibility or usage access was switched off, so blocked apps can open. Your session is still running.</Text>
+            <PillButton label="Turn it back on" height={48} onPress={() => BlockingModule.requestAccessibility().catch(() => {})} />
+          </View>
+        ) : null}
+
+        {activeSession?.intention ? (
+          <Animated.View style={[card, { marginTop: 22, paddingVertical: 16, paddingHorizontal: 20, gap: 6 }, rise(420)]}>
+            <Text style={{ fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.54, color: pal.cFF5A5F }}>YOU'RE HERE TO</Text>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 22, letterSpacing: -0.44, lineHeight: 25, color: pal.cF5F5F2 }}>{activeSession.intention}</Text>
+          </Animated.View>
+        ) : null}
+
+        <Animated.View style={[card, { marginTop: 10, overflow: 'hidden' }, rise(500)]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 58, paddingLeft: 20, paddingRight: 14, borderBottomWidth: 1, borderBottomColor: pal.c232327 }}>
+            <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>Held closed</Text>
+            {appLabels.length ? (
+              <View style={{ flexDirection: 'row', gap: 6 }} accessibilityLabel={appLabels.join(', ')}>
+                {appLabels.slice(0, 4).map(label => (
+                  <View key={label} style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: pal.c26262B, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 13, color: pal.cD8D8DC }}>{(label[0] ?? '?').toUpperCase()}</Text>
+                  </View>
+                ))}
+                {appLabels.length > 4 ? (
+                  <View style={{ height: 34, paddingHorizontal: 8, borderRadius: 10, backgroundColor: pal.c26262B, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 13, color: pal.cD8D8DC }}>+{appLabels.length - 4}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : (
+              <Pressable onPress={() => navigation.navigate('MainTabs', { screen: 'SettingsTab', params: { screen: 'ManageBlockedApps' } } as never)}
+                style={{ height: 34, paddingHorizontal: 14, borderRadius: 999, backgroundColor: pal.c2A1416, justifyContent: 'center' }} accessibilityRole="button">
+                <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.cFF8A8D }}>Choose apps</Text>
+              </Pressable>
+            )}
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 62, paddingLeft: 20, paddingRight: 14, borderBottomWidth: 1, borderBottomColor: pal.c232327 }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>Silence their notifications</Text>
+              <Text style={{ fontFamily: fonts.body, fontSize: 12, color: pal.c9A9AA0 }}>
+                {silenced ? (heldCount > 0 ? `Silenced until you tap out · ${heldCount} held` : 'Silenced until you tap out') : 'They can still ping you'}
+              </Text>
+            </View>
+            <Toggle value={silenced} onChange={onSilence} label="Silence notifications" />
+          </View>
+
+          {parked.length ? (
+            <View style={{ gap: 6, paddingTop: 12, paddingHorizontal: 20, paddingBottom: 4 }}>
+              {parked.map((p, i) => (
+                <View key={`${p}${i}`} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: pal.cFF5A5F }} />
+                  <Text style={{ flex: 1, fontFamily: fonts.body, fontSize: 14, color: pal.cB4B4BA }}>{p}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {parkOpen ? (
+            <View style={{ flexDirection: 'row', gap: 8, paddingTop: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
+              <TextInput value={parkText} onChangeText={setParkText} placeholder="Text Sam about Friday…" placeholderTextColor={pal.c6E6E75} autoFocus
+                onSubmitEditing={submitPark} returnKeyType="done" maxLength={120}
+                style={{ flex: 1, minWidth: 0, height: 44, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: pal.c2A2A2F, backgroundColor: pal.c0F0F11, color: pal.cF5F5F2, fontFamily: fonts.body, fontSize: 14 }} />
+              <Pressable onPress={submitPark} accessibilityRole="button" style={{ height: 44, paddingHorizontal: 16, borderRadius: 999, backgroundColor: pal.cF5F5F2, justifyContent: 'center' }}>
+                <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 14, color: pal.c0B0B0D }}>Park</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable onPress={() => setParkOpen(true)} accessibilityRole="button"
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, paddingLeft: 20, paddingRight: 18, backgroundColor: pressed ? pal.c1C1C20 : 'transparent' })}>
+              <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>Park a distraction for later</Text>
+              <Glyph name="plus" size={18} color={pal.c9A9AA0} />
+            </Pressable>
+          )}
+        </Animated.View>
+      </ScrollView>
+
+      <Animated.View style={[{ paddingBottom: 14 }, rise(580)]}>
+        <Pressable onPress={() => setEndScan(true)} accessibilityRole="button" accessibilityHint="Opens the scan sheet. End early is there too."
+          style={({ pressed }) => ({ height: 58, borderRadius: 999, borderWidth: 1, borderColor: pressed ? '#E5242B' : pal.c3A3A40, backgroundColor: pal.c0B0B0D, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 16 })}>
+          <Glyph name="nfc" size={20} color={pal.cFF5A5F} />
+          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 16, color: pal.cF5F5F2 }} numberOfLines={1}>Tap {keyName} to finish</Text>
         </Pressable>
-      </View>
+      </Animated.View>
 
-      <View style={styles.bottom}>
-        <View style={styles.brickAction}>
-          <Icon name="radio" size={18} color={theme.colors.text} />
-          <Text style={styles.brickActionText}>Tap {brickName} to finish</Text>
-        </View>
-        {!isBrickOnly && (
-          <Pressable accessibilityRole="button" onPress={endEarly} style={styles.endEarly}>
-            <Text style={styles.endEarlyText}>End early</Text>
-          </Pressable>
-        )}
-      </View>
-      <Modal visible={laterOpen} transparent animationType="slide" onRequestClose={() => setLaterOpen(false)}>
-        <View style={styles.modalScrim}>
-          <View style={styles.noteSheet}>
-            <Text style={styles.noteKicker}>SMALL COACH</Text>
-            <Text style={styles.noteTitle}>Park it. Return to focus.</Text>
-            <Text style={styles.noteBody}>Capture one thought so your brain does not need to hold it.</Text>
-            <TextInput value={laterNote} onChangeText={setLaterNote} placeholder="Remember to…" placeholderTextColor={theme.colors.faint} style={styles.noteInput} maxLength={160} multiline autoFocus />
-            <Button label="Save for later" onPress={() => {
-              if (!activeSession) return;
-              db.sessions.saveLaterNote(activeSession.id, laterNote).then(() => setLaterOpen(false)).catch(() => {});
-            }} disabled={!laterNote.trim()} />
-            <Pressable onPress={() => setLaterOpen(false)} style={styles.noteCancel}><Text style={styles.noteCancelText}>Cancel</Text></Pressable>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      <ScanSheet visible={endScan} scanFor="end" done={false} keyName={keyName} onClose={() => setEndScan(false)} onTrouble={endTrouble} />
+      <NotificationAccessSheet visible={silenceSheet} onClose={() => { setSilenceSheet(false); poll(); }} onChanged={() => poll()} />
+    </Frame>
   );
 }
 
-const makeStyles = (theme: Theme) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.bg, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 16 },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
-  identityText: { color: theme.colors.text, fontSize: 14, fontWeight: '500' },
-  warning: { backgroundColor: theme.mode === 'dark' ? '#332919' : '#FFF4DD', borderColor: theme.mode === 'dark' ? '#5A4723' : '#E9D6AC', borderWidth: 1, borderRadius: 20, padding: 16, gap: 12, marginTop: 12 },
-  warningTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  warningTitle: { color: theme.mode === 'dark' ? '#F1CB78' : '#6D531B', fontFamily: 'BricolageGrotesque', fontSize: 21, letterSpacing: -0.7 },
-  warningText: { color: theme.mode === 'dark' ? '#D5B872' : '#7B642E', fontSize: 13, lineHeight: 19 },
-  timerArea: { marginTop: 36 },
-  intention: { color: theme.colors.text, fontFamily: 'BricolageGrotesque', fontSize: 24, lineHeight: 29, letterSpacing: -1, marginBottom: 24, maxWidth: 310 },
-  timer: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 46, letterSpacing: -2 },
-  timerCaption: { color: theme.colors.text, fontSize: 14, marginTop: 10 },
-  progressTrack: { height: 4, borderRadius: 2, backgroundColor: theme.colors.track, overflow: 'hidden', marginTop: 30 },
-  progressFill: { height: 4, backgroundColor: theme.colors.accent, borderRadius: 2 },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  dataLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11 },
-  appsArea: { marginTop: 44 },
-  sectionTitle: { color: theme.colors.text, fontSize: 14, marginBottom: 10 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  chip: { backgroundColor: theme.colors.card2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7 },
-  chipText: { color: theme.colors.text, fontSize: 12 },
-  emptyText: { color: theme.colors.muted, fontSize: 13 },
-  laterAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  laterActionText: { color: theme.colors.text, fontSize: 13, fontWeight: '600' },
-  bottom: { marginTop: 'auto', gap: 8 },
-  brickAction: { height: 56, borderRadius: 17, borderWidth: 1, borderColor: theme.colors.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  brickActionText: { color: theme.colors.text, fontSize: 14, fontWeight: '600' },
-  endEarly: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  endEarlyText: { color: theme.colors.muted, fontSize: 13 },
-  modalScrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.62)' },
-  noteSheet: { backgroundColor: theme.colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 20 },
-  noteKicker: { color: theme.colors.accent, fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.5 },
-  noteTitle: { color: theme.colors.text, fontFamily: 'BricolageGrotesque', fontSize: 28, letterSpacing: -1.3, marginTop: 8 },
-  noteBody: { color: theme.colors.muted, fontSize: 13, lineHeight: 19, marginTop: 7, marginBottom: 16 },
-  noteInput: { minHeight: 84, backgroundColor: theme.colors.card2, borderRadius: 17, borderColor: theme.colors.border, borderWidth: StyleSheet.hairlineWidth, color: theme.colors.text, padding: 15, fontSize: 15, textAlignVertical: 'top', marginBottom: 16 },
-  noteCancel: { height: 44, alignItems: 'center', justifyContent: 'center' },
-  noteCancelText: { color: theme.colors.muted, fontSize: 13 },
-});

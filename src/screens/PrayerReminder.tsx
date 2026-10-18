@@ -1,97 +1,163 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Screen } from '../components/Screen';
-import { Card } from '../components/Card';
-import { Switch } from '../components/Switch';
-import { Button } from '../components/Button';
-import { Icon } from '../components/Icon';
-import { Theme } from '../theme';
-import { useTheme } from '../theme/ThemeContext';
 import { db } from '../db';
 import { BlockingModule } from '../native/BlockingModule';
+import { ensureNotificationPermission } from '../utils/permissions';
+import { describeError } from '../utils/describeError';
+import {
+  addFiveDailyPrayers,
+  formatTime,
+  hasAllFiveDailyPrayers,
+  MAX_PRAYER_REMINDERS,
+  newReminderId,
+  parseReminders,
+  PrayerReminderConfig,
+  SETTINGS_KEY,
+  sortReminders,
+} from '../features/prayer';
+import { faslaAlert } from '../components/FaslaDialog';
+import { RED, usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Eyebrow, Frame, Glyph, PillButton, RoundButton, Sheet, showToast, Toggle } from '../ui/kit';
 
+interface Draft { id: string | null; label: string; hour: number; minute: number }
+
+const wrap = (v: number, n: number) => ((v % n) + n) % n;
+
+/** Prayer reminders + New reminder sheet (Fasla Redesign v2). */
 export function PrayerReminder() {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const pal = usePalette();
   const navigation = useNavigation();
-  const [enabled, setEnabled] = useState(false);
-  const [hour, setHour] = useState('12');
-  const [minute, setMinute] = useState('30');
-  const [saved, setSaved] = useState(false);
+  const [reminders, setReminders] = useState<PrayerReminderConfig[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [nameFocus, setNameFocus] = useState(false);
 
   useFocusEffect(useCallback(() => {
     db.settings.getAll().then(values => {
-      setEnabled(values.prayer_reminder_enabled === '1');
-      setHour(values.prayer_reminder_hour ?? '12');
-      setMinute(values.prayer_reminder_minute ?? '30');
-    }).catch(() => {});
+      setReminders(parseReminders(values));
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
   }, []));
 
-  const validHour = Math.max(0, Math.min(23, Number(hour) || 0));
-  const validMinute = Math.max(0, Math.min(59, Number(minute) || 0));
-
-  const save = async () => {
-    if (enabled && Platform.OS === 'android' && Platform.Version >= 33) {
-      await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+  // Every change is saved and rescheduled immediately — there is no separate Save step to forget.
+  const persist = async (next: PrayerReminderConfig[]) => {
+    const sorted = sortReminders(next);
+    setReminders(sorted);
+    try {
+      if (sorted.some(r => r.enabled)) await ensureNotificationPermission();
+      await db.settings.set(SETTINGS_KEY, JSON.stringify(sorted));
+      await BlockingModule.setPrayerReminders(sorted);
+    } catch (err) {
+      faslaAlert('Could not save reminders', describeError(err));
     }
-    await Promise.all([
-      db.settings.set('prayer_reminder_enabled', enabled ? '1' : '0'),
-      db.settings.set('prayer_reminder_hour', String(validHour)),
-      db.settings.set('prayer_reminder_minute', String(validMinute)),
-    ]);
-    if (enabled) await BlockingModule.schedulePrayerReminder(validHour, validMinute);
-    else await BlockingModule.cancelPrayerReminder();
-    setHour(String(validHour).padStart(2, '0'));
-    setMinute(String(validMinute).padStart(2, '0'));
-    setSaved(true);
   };
 
+  const saveDraft = () => {
+    if (!draft) return;
+    const entry: PrayerReminderConfig = { id: draft.id ?? newReminderId(), label: draft.label.trim() || 'Prayer', hour: draft.hour, minute: draft.minute, enabled: true };
+    const next = draft.id ? reminders.map(r => (r.id === draft.id ? { ...entry, enabled: r.enabled } : r)) : [...reminders, entry];
+    setDraft(null);
+    persist(next).then(() => showToast(`Reminder set for ${formatTime(entry.hour, entry.minute)}`)).catch(() => {});
+  };
+
+  const deleteDraft = () => {
+    if (!draft?.id) return;
+    const id = draft.id;
+    setDraft(null);
+    persist(reminders.filter(r => r.id !== id)).catch(() => {});
+  };
+
+  const atLimit = reminders.length >= MAX_PRAYER_REMINDERS;
+
+  const stepper = (label: string, value: number, step: number, n: number, set: (v: number) => void) => (
+    <View style={{ alignItems: 'center', gap: 4, padding: 6, borderRadius: 20, backgroundColor: pal.c0F0F11, borderWidth: 1, borderColor: pal.c2A2A2F }}>
+      <Pressable onPress={() => set(wrap(value + step, n))} accessibilityRole="button" accessibilityLabel={`${label} up`}
+        style={({ pressed }) => ({ width: 76, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? pal.c1C1C20 : 'transparent' })}>
+        <Glyph name="chevronUp" size={18} color={pal.c9A9AA0} />
+      </Pressable>
+      <Text style={{ fontFamily: fonts.monoMedium, fontSize: 36, color: pal.cF5F5F2 }} accessibilityLabel={`${label} ${value}`}>{String(value).padStart(2, '0')}</Text>
+      <Pressable onPress={() => set(wrap(value - step, n))} accessibilityRole="button" accessibilityLabel={`${label} down`}
+        style={({ pressed }) => ({ width: 76, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? pal.c1C1C20 : 'transparent' })}>
+        <Glyph name="chevronDown" size={18} color={pal.c9A9AA0} />
+      </Pressable>
+    </View>
+  );
+
   return (
-    <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button" accessibilityLabel="Go back"><Icon name="back" size={20} color={theme.colors.text} /></Pressable>
-          <Text style={styles.headerTitle}>Prayer reminder</Text>
+    <Frame>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+          <RoundButton icon="back" label="Back" onPress={() => navigation.goBack()} />
+          <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cB4B4BA }}>Prayer reminders</Text>
         </View>
-        <Text style={styles.title}>A quiet cue. Nothing more.</Text>
-        <Text style={styles.body}>Bricks can remind you once each day. Tapping your Brick starts quiet focus; it never records prayer as completed.</Text>
+        <Text style={{ marginTop: 22, fontFamily: fonts.display, fontSize: 34, letterSpacing: -1.36, lineHeight: 36, color: pal.cF5F5F2 }} accessibilityRole="header">A quiet cue. Nothing more.</Text>
+        <Text style={{ marginTop: 12, fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: pal.c9A9AA0 }}>
+          A gentle notification at each time you set. Tap your key if you want the phone to stay quiet. fasla never records whether you prayed.
+        </Text>
 
-        <Card padding={0} radius={20} style={styles.card}>
-          <View style={styles.toggleRow}>
-            <View style={styles.toggleCopy}><Text style={styles.rowTitle}>Daily reminder</Text><Text style={styles.rowSub}>Runs locally on this phone</Text></View>
-            <Switch value={enabled} onValueChange={value => { setEnabled(value); setSaved(false); }} accessibilityLabel="Daily prayer reminder" />
+        {loaded && reminders.length === 0 ? (
+          <View style={{ marginTop: 20, borderRadius: 24, backgroundColor: pal.c17171A, padding: 20, gap: 6 }}>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: pal.cF5F5F2 }}>No reminders yet</Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: pal.c9A9AA0 }}>Add the five daily prayers in one tap, then adjust each time to your local timetable.</Text>
           </View>
-          <View style={styles.timeArea}>
-            <Text style={styles.label}>LOCAL TIME · 24 HOUR</Text>
-            <View style={styles.timeRow}>
-              <TextInput value={hour} onChangeText={value => { setHour(value.replace(/\D/g, '').slice(0, 2)); setSaved(false); }} keyboardType="number-pad" style={styles.timeInput} maxLength={2} accessibilityLabel="Reminder hour" />
-              <Text style={styles.colon}>:</Text>
-              <TextInput value={minute} onChangeText={value => { setMinute(value.replace(/\D/g, '').slice(0, 2)); setSaved(false); }} keyboardType="number-pad" style={styles.timeInput} maxLength={2} accessibilityLabel="Reminder minute" />
-            </View>
+        ) : reminders.length ? (
+          <View style={{ marginTop: 20, borderRadius: 24, backgroundColor: pal.c17171A, overflow: 'hidden' }}>
+            {reminders.map((r, i) => (
+              <View key={r.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 66, paddingLeft: 20, paddingRight: 16, borderBottomWidth: i === reminders.length - 1 ? 0 : 1, borderBottomColor: pal.c222226 }}>
+                <Pressable onPress={() => setDraft({ id: r.id, label: r.label, hour: r.hour, minute: r.minute })} accessibilityRole="button" accessibilityLabel={`Edit ${r.label} at ${formatTime(r.hour, r.minute)}`}
+                  style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 16, minHeight: 66 }}>
+                  <Text style={{ fontFamily: fonts.monoMedium, fontSize: 24, letterSpacing: -0.48, color: r.enabled ? pal.cF5F5F2 : pal.c6E6E75 }}>{formatTime(r.hour, r.minute)}</Text>
+                  <Text style={{ flex: 1, fontFamily: fonts.body, fontSize: 15, color: r.enabled ? pal.cD8D8DC : pal.c6E6E75 }} numberOfLines={1}>{r.label}</Text>
+                </Pressable>
+                <Toggle value={r.enabled} onChange={v => { persist(reminders.map(x => (x.id === r.id ? { ...x, enabled: v } : x))).catch(() => {}); }} label={`${r.label} reminder`} />
+              </View>
+            ))}
           </View>
-        </Card>
+        ) : null}
 
-        <View style={styles.note}><Icon name="info" size={16} color={theme.colors.muted} /><Text style={styles.noteText}>This MVP uses one manual daily time. Prayer-time calculation methods and travel adjustments stay out until device reminder reliability is proven.</Text></View>
-        <Button label={saved ? 'Saved' : 'Save reminder'} onPress={save} />
+        {!hasAllFiveDailyPrayers(reminders) && !atLimit ? (
+          <PillButton label="Add the five daily prayers" kind="muted" height={54} onPress={() => { persist(addFiveDailyPrayers(reminders)).catch(() => {}); }} style={{ marginTop: 10 }} textStyle={{ fontSize: 15 }} />
+        ) : null}
+        <Pressable disabled={atLimit} onPress={() => setDraft({ id: null, label: '', hour: 12, minute: 0 })} accessibilityRole="button"
+          style={({ pressed }) => ({ marginTop: 10, height: 58, borderRadius: 999, borderWidth: 1, borderStyle: 'dashed', borderColor: pressed ? RED : pal.c3A3A40, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: atLimit ? 0.5 : 1 })}>
+          <Glyph name="plus" size={18} color={pal.cF5F5F2} />
+          <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>{atLimit ? `Limit of ${MAX_PRAYER_REMINDERS} reached` : 'Add a reminder'}</Text>
+        </Pressable>
+
+        <View style={{ marginTop: 20, flexDirection: 'row', gap: 10, paddingHorizontal: 4 }}>
+          <Glyph name="info" size={16} color={pal.c85858C} style={{ marginTop: 2 }} />
+          <Text style={{ flex: 1, fontFamily: fonts.body, fontSize: 12, lineHeight: 18, color: pal.c85858C }}>
+            These are fixed clock times. Real prayer times shift a little every day, so check them against your local timetable every few weeks. Android may also deliver a reminder a few minutes late to save battery.
+          </Text>
+        </View>
       </ScrollView>
-    </Screen>
+
+      <Sheet visible={draft !== null} onClose={() => setDraft(null)}>
+        <Text style={{ marginTop: 16, fontFamily: fonts.display, fontSize: 28, letterSpacing: -0.98, color: pal.cF5F5F2 }}>{draft?.id ? 'Edit reminder' : 'New reminder'}</Text>
+        <Eyebrow style={{ marginTop: 18, marginBottom: 8, marginHorizontal: 4 }}>NAME</Eyebrow>
+        <TextInput
+          value={draft?.label ?? ''}
+          onChangeText={label => setDraft(d => (d ? { ...d, label } : d))}
+          placeholder="e.g. Asr"
+          placeholderTextColor={pal.c6E6E75}
+          maxLength={40}
+          onFocus={() => setNameFocus(true)}
+          onBlur={() => setNameFocus(false)}
+          accessibilityLabel="Reminder name"
+          style={{ height: 54, paddingHorizontal: 18, borderRadius: 18, borderWidth: 1, borderColor: nameFocus ? RED : pal.c2A2A2F, backgroundColor: pal.c0F0F11, color: pal.cF5F5F2, fontFamily: fonts.body, fontSize: 16 }}
+        />
+        <Eyebrow style={{ marginTop: 18, marginBottom: 8, marginHorizontal: 4 }}>TIME · 24 HOUR</Eyebrow>
+        {draft ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {stepper('Hour', draft.hour, 1, 24, hour => setDraft(d => (d ? { ...d, hour } : d)))}
+            {stepper('Minute', draft.minute, 5, 60, minute => setDraft(d => (d ? { ...d, minute } : d)))}
+          </View>
+        ) : null}
+        <PillButton label="Save" onPress={saveDraft} style={{ marginTop: 20 }} />
+        {draft?.id ? <PillButton label="Delete reminder" kind="ghost" height={44} onPress={deleteDraft} style={{ marginTop: 6 }} textStyle={{ color: pal.cFF5A5F, fontSize: 15 }} /> : null}
+      </Sheet>
+    </Frame>
   );
 }
-
-const makeStyles = (theme: Theme) => StyleSheet.create({
-  scroll: { paddingTop: 10, paddingBottom: 32 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 30 },
-  back: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.card, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
-  title: { color: theme.colors.text, fontFamily: 'BricolageGrotesque', fontSize: 32, lineHeight: 36, letterSpacing: -1.6 },
-  body: { color: theme.colors.muted, fontSize: 14, lineHeight: 21, marginTop: 10, marginBottom: 24 },
-  card: { overflow: 'hidden' },
-  toggleRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, borderBottomColor: theme.colors.border, borderBottomWidth: StyleSheet.hairlineWidth },
-  toggleCopy: { flex: 1 }, rowTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '600' }, rowSub: { color: theme.colors.muted, fontSize: 12, marginTop: 3 },
-  timeArea: { padding: 18 }, label: { color: theme.colors.faint, fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.5 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-  timeInput: { width: 76, height: 64, borderRadius: 13, backgroundColor: theme.colors.card2, color: theme.colors.text, fontFamily: 'IBMPlexMono-Medium', fontSize: 28, textAlign: 'center' },
-  colon: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Medium', fontSize: 28, marginHorizontal: 10 },
-  note: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginVertical: 20 }, noteText: { flex: 1, color: theme.colors.muted, fontSize: 12, lineHeight: 18 },
-});

@@ -1,5 +1,6 @@
 import { db } from '../../db';
 import type { Session } from '../../db/types';
+import { chartBuckets, countSessionsWithin, dayStarts, focusWithin, percentChange, previousRange, sessionInterval } from './statsMath';
 
 export type Period = 'day' | 'week' | 'month';
 
@@ -96,52 +97,40 @@ export function computeStreakDays(allSessions: Array<Pick<Session, 'startTime' |
   return streakDays;
 }
 
-export async function getPeriodStats(period: Period): Promise<PeriodStats> {
-  const { start, end } = periodRange(period);
-  
-  const sessionsList = await db.sessions.sessionsBetween(start, end);
-  let focusSec = 0;
-  for (const s of sessionsList) {
-    if (s.durationSec != null) {
-      focusSec += s.durationSec;
-    } else {
-      const e = s.endTime || end;
-      focusSec += (e - s.startTime);
-    }
-  }
-  
-  const allAttempts = await db.getDriver().query(
+const DEFAULT_DAILY_GOAL_SEC = 210 * 60;
+
+async function dailyGoalSec(): Promise<number> {
+  const goal = Number(await db.settings.get('daily_goal'));
+  return goal > 0 ? goal : DEFAULT_DAILY_GOAL_SEC;
+}
+
+async function countAttempts(start: number, end: number): Promise<number> {
+  const rows = await db.getDriver().query(
     'SELECT COUNT(*) as count FROM blocked_attempts WHERE created_at >= ? AND created_at <= ?',
     [start, end]
   );
-  const blockedCount = allAttempts[0] ? Number(allAttempts[0].count) : 0;
-  
-  const goalStr = await db.settings.get('daily_goal');
-  const dailyGoal = goalStr ? Number(goalStr) : 210 * 60;
-  
-  let goalPct = 0;
-  if (dailyGoal > 0) {
-    goalPct = Math.min(100, Math.floor((focusSec / dailyGoal) * 100));
-  }
-  
-  let daysInPeriod = 1;
-  const now = new Date();
-  if (period === 'week') daysInPeriod = 7;
-  else if (period === 'month') daysInPeriod = now.getDate();
+  return rows[0] ? Number(rows[0].count) : 0;
+}
 
-  const daysWithSession = new Set<string>();
-  for (const s of sessionsList) {
-    daysWithSession.add(dayKey(new Date(s.startTime * 1000)));
-  }
-  const consistencyPct = daysInPeriod > 0 ? Math.min(100, Math.floor((daysWithSession.size / daysInPeriod) * 100)) : 0;
-  
-  const allSessions = await db.sessions.listSessions();
-  const streakDays = computeStreakDays(allSessions);
-  
+export async function getPeriodStats(period: Period): Promise<PeriodStats> {
+  const { start, end } = periodRange(period);
+  const sessions = await db.sessions.sessionsOverlapping(start, end);
+  const focusSec = focusWithin(sessions, start, end, end);
+
+  // The goal is per day, so a week is measured against seven days of goal — not one.
+  const days = dayStarts(period, end);
+  const goal = (await dailyGoalSec()) * days.length;
+  const goalPct = goal > 0 ? Math.min(100, Math.floor((focusSec / goal) * 100)) : 0;
+
+  const activeDays = days.filter(dayStart => focusWithin(sessions, dayStart, dayStart + 86400, end) > 0).length;
+  const consistencyPct = Math.min(100, Math.floor((activeDays / days.length) * 100));
+
+  const streakDays = computeStreakDays(await db.sessions.listSessions());
+
   return {
     focusSec,
-    sessions: sessionsList.length,
-    blocked: blockedCount,
+    sessions: countSessionsWithin(sessions, start, end, end),
+    blocked: await countAttempts(start, end),
     streakDays,
     goalPct,
     consistencyPct,
@@ -150,66 +139,11 @@ export async function getPeriodStats(period: Period): Promise<PeriodStats> {
 
 export async function getFocusBars(period: Period): Promise<BarDatum[]> {
   const { start, end } = periodRange(period);
-  const sessionsList = await db.sessions.sessionsBetween(start, end);
-  
-  const buckets: { label: string; value: number }[] = [];
-  
-  if (period === 'day') {
-    for (let i = 0; i < 12; i++) {
-      const hour = 6 + i;
-      const label = hour === 12 ? '12p' : hour > 12 ? `${hour - 12}p` : `${hour}a`;
-      buckets.push({ label, value: 0 });
-    }
-    for (const s of sessionsList) {
-      const d = new Date(s.startTime * 1000);
-      const hour = d.getHours();
-      if (hour >= 6 && hour < 18) {
-        const val = s.durationSec ?? ((s.endTime || end) - s.startTime);
-        buckets[hour - 6].value += val;
-      }
-    }
-  } else if (period === 'week') {
-    const dayNames = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(todayStart.getTime() - i * 86400000);
-      buckets.push({ label: dayNames[d.getDay()], value: 0 });
-    }
-    for (const s of sessionsList) {
-      const d = new Date(s.startTime * 1000);
-      const diffDays = Math.floor((todayStart.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86400000);
-      if (diffDays >= 0 && diffDays < 7) {
-        const val = s.durationSec ?? ((s.endTime || end) - s.startTime);
-        buckets[6 - diffDays].value += val;
-      }
-    }
-  } else {
-    buckets.push({ label: 'W1', value: 0 });
-    buckets.push({ label: 'W2', value: 0 });
-    buckets.push({ label: 'W3', value: 0 });
-    buckets.push({ label: 'W4', value: 0 });
-    for (const s of sessionsList) {
-      const d = new Date(s.startTime * 1000);
-      const date = d.getDate();
-      const val = s.durationSec ?? ((s.endTime || end) - s.startTime);
-      if (date <= 7) buckets[0].value += val;
-      else if (date <= 14) buckets[1].value += val;
-      else if (date <= 21) buckets[2].value += val;
-      else buckets[3].value += val;
-    }
-  }
-  
-  let max = -1;
-  for (const b of buckets) {
-    if (b.value > max) max = b.value;
-  }
-  
-  return buckets.map(b => ({
-    label: b.label,
-    value: b.value,
-    isMax: max > 0 && b.value === max,
-  }));
+  const buckets = chartBuckets(period, end);
+  const sessions = await db.sessions.sessionsOverlapping(Math.min(start, buckets[0].start), end);
+  const values = buckets.map(b => ({ label: b.label, value: focusWithin(sessions, b.start, b.end, end) }));
+  const max = Math.max(0, ...values.map(v => v.value));
+  return values.map(v => ({ ...v, isMax: max > 0 && v.value === max }));
 }
 
 export async function getTopBlocked(period: Period, limit: number = 5): Promise<TopApp[]> {
@@ -229,150 +163,79 @@ export interface TodayStats { focusSec: number; goalSec: number; blocked: number
 export async function getTodayStats(): Promise<TodayStats> {
   const now = Math.floor(Date.now() / 1000);
   const start = startOfDay(now);
-  
-  const sessionsList = await db.sessions.sessionsBetween(start, now);
-  let focusSec = 0;
-  for (const s of sessionsList) {
-    focusSec += s.durationSec ?? ((s.endTime || now) - s.startTime);
-  }
-  
-  const goalStr = await db.settings.get('daily_goal');
-  const goalSec = goalStr ? Number(goalStr) : 210 * 60;
-  const goalPct = Math.min(100, Math.floor((focusSec / goalSec) * 100));
-  
-  const allAttempts = await db.getDriver().query(
-    'SELECT COUNT(*) as count FROM blocked_attempts WHERE created_at >= ? AND created_at <= ?',
-    [start, now]
-  );
-  const blocked = allAttempts[0] ? Number(allAttempts[0].count) : 0;
-  
-  const allSessions = await db.sessions.listSessions();
-  const streakDays = computeStreakDays(allSessions);
-  
-  return { focusSec, goalSec, blocked, goalPct, streakDays };
+  const sessions = await db.sessions.sessionsOverlapping(start, now);
+  const focusSec = focusWithin(sessions, start, now, now);
+  const goalSec = await dailyGoalSec();
+  return {
+    focusSec,
+    goalSec,
+    blocked: await countAttempts(start, now),
+    goalPct: Math.min(100, Math.floor((focusSec / goalSec) * 100)),
+    streakDays: computeStreakDays(await db.sessions.listSessions()),
+  };
 }
 
-export async function getPeriodComparison(period: Period): Promise<{ focusSec: number; prevFocusSec: number; deltaPct: number }> {
+/** `deltaPct` is null when the previous period had no focus — there's nothing honest to compare. */
+export async function getPeriodComparison(period: Period): Promise<{ focusSec: number; prevFocusSec: number; deltaPct: number | null }> {
   const { start, end } = periodRange(period);
-  const currentSessions = await db.sessions.sessionsBetween(start, end);
-  let focusSec = 0;
-  for (const s of currentSessions) {
-    focusSec += s.durationSec ?? ((s.endTime || end) - s.startTime);
-  }
-  
-  let prevStart = 0;
-  let prevEnd = start - 1;
-  if (period === 'day') {
-    prevStart = start - 86400;
-  } else if (period === 'week') {
-    prevStart = start - 7 * 86400;
-  } else {
-    const d = new Date(start * 1000);
-    const prevMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
-    prevStart = Math.floor(prevMonth.getTime() / 1000);
-  }
-  
-  const prevSessions = await db.sessions.sessionsBetween(prevStart, prevEnd);
-  let prevFocusSec = 0;
-  for (const s of prevSessions) {
-    prevFocusSec += s.durationSec ?? ((s.endTime || prevEnd) - s.startTime);
-  }
-  
-  const deltaPct = prevFocusSec > 0
-    ? Math.round(((focusSec - prevFocusSec) / prevFocusSec) * 100)
-    : focusSec > 0 ? 100 : 0;
-  
-  return { focusSec, prevFocusSec, deltaPct };
+  const prev = previousRange(period, start, end);
+  const sessions = await db.sessions.sessionsOverlapping(prev.start, end);
+  const focusSec = focusWithin(sessions, start, end, end);
+  const prevFocusSec = focusWithin(sessions, prev.start, prev.end, end);
+  return { focusSec, prevFocusSec, deltaPct: percentChange(focusSec, prevFocusSec) };
 }
 
 export async function getCompletionByMode(period: Period): Promise<Array<{ mode: string; label: string; completed: number; total: number; pct: number }>> {
   const { start, end } = periodRange(period);
-  const sessions = await db.sessions.sessionsBetween(start, end);
-  
-  const modes: Record<string, { total: number; completed: number; label: string }> = {
-    deep: { total: 0, completed: 0, label: 'Deep Work' },
-    wind: { total: 0, completed: 0, label: 'Wind Down' },
-    custom: { total: 0, completed: 0, label: 'Custom' },
-    recovered: { total: 0, completed: 0, label: 'Recovered' }
-  };
-  
+  const sessions = (await db.sessions.sessionsOverlapping(start, end)).filter(s => s.endedVia !== 'start_failed');
+  const labels: Record<string, string> = { deep: 'Deep Work', wind: 'Wind Down', custom: 'Custom', recovered: 'Recovered' };
+  const modes: Record<string, { total: number; completed: number }> = {};
+  const tagModes = new Map<string, string>();
+
   for (const s of sessions) {
     let mode = 'recovered';
     if (s.tagId) {
-      const tag = await db.tags.getTagById(s.tagId);
-      if (tag) mode = tag.mode;
+      if (!tagModes.has(s.tagId)) tagModes.set(s.tagId, (await db.tags.getTagById(s.tagId))?.mode ?? 'recovered');
+      mode = tagModes.get(s.tagId)!;
     }
-    
-    if (!modes[mode]) {
-      modes[mode] = { total: 0, completed: 0, label: mode === 'deep' ? 'Deep Work' : mode === 'wind' ? 'Wind Down' : mode === 'custom' ? 'Custom' : 'Recovered' };
-    }
-    
+    modes[mode] = modes[mode] ?? { total: 0, completed: 0 };
     modes[mode].total++;
-    const isCompleted = isCompletedSession(s);
-    if (isCompleted) {
-      modes[mode].completed++;
-    }
+    if (isCompletedSession(s)) modes[mode].completed++;
   }
-  
-  const result = [];
-  for (const [modeKey, data] of Object.entries(modes)) {
-    if (data.total > 0) {
-      result.push({
-        mode: modeKey,
-        label: data.label,
-        completed: data.completed,
-        total: data.total,
-        pct: Math.round((data.completed / data.total) * 100)
-      });
-    }
-  }
-  return result;
+
+  return Object.entries(modes).map(([mode, data]) => ({
+    mode,
+    label: labels[mode] ?? mode,
+    completed: data.completed,
+    total: data.total,
+    pct: Math.round((data.completed / data.total) * 100),
+  }));
 }
 
 export async function getBestDay(period: Period): Promise<{ label: string; minutes: number } | null> {
-  const { start, end } = periodRange(period);
-  const sessions = await db.sessions.sessionsBetween(start, end);
-  if (sessions.length === 0) return null;
-  
-  const daySums: Record<string, number> = {};
-  for (const s of sessions) {
-    const dKey = dayKey(new Date(s.startTime * 1000));
-    const val = s.durationSec ?? ((s.endTime || end) - s.startTime);
-    daySums[dKey] = (daySums[dKey] || 0) + val;
+  const { end } = periodRange(period);
+  const days = dayStarts(period, end);
+  const sessions = await db.sessions.sessionsOverlapping(days[0], end);
+  let best: { start: number; sec: number } | null = null;
+  for (const dayStart of days) {
+    const sec = focusWithin(sessions, dayStart, dayStart + 86400, end);
+    if (sec > 0 && (!best || sec > best.sec)) best = { start: dayStart, sec };
   }
-  
-  let maxDay = '';
-  let maxSec = -1;
-  for (const [dKey, sec] of Object.entries(daySums)) {
-    if (sec > maxSec) {
-      maxSec = sec;
-      maxDay = dKey;
-    }
-  }
-  if (maxSec < 0) return null;
-  
-  const todayStr = dayKey(new Date());
-  let label = 'Today';
-  if (maxDay !== todayStr) {
-    const parts = maxDay.split('-');
-    const d = new Date(Number(parts[0]), Number(parts[1]), Number(parts[2]));
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    label = dayNames[d.getDay()];
-  }
-  
-  return { label, minutes: Math.round(maxSec / 60) };
+  if (!best) return null;
+  const label = best.start === startOfDay(end)
+    ? 'Today'
+    : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(best.start * 1000).getDay()];
+  return { label, minutes: Math.round(best.sec / 60) };
 }
 
+/** Average length of sessions that finished properly (key tap or timer) in the period. */
 export async function getAvgSessionSec(period: Period): Promise<number> {
   const { start, end } = periodRange(period);
-  const sessions = await db.sessions.sessionsBetween(start, end);
-  let totalSec = 0;
-  let count = 0;
-  for (const s of sessions) {
-    if (isCompletedSession(s)) {
-      totalSec += s.durationSec ?? (s.endTime ? s.endTime - s.startTime : 0);
-      count++;
-    }
-  }
-  return count > 0 ? Math.round(totalSec / count) : 0;
+  const completed = (await db.sessions.sessionsOverlapping(start, end)).filter(isCompletedSession);
+  if (completed.length === 0) return 0;
+  const total = completed.reduce((sum, s) => {
+    const iv = sessionInterval(s, end);
+    return sum + (iv ? iv.end - iv.start : 0);
+  }, 0);
+  return Math.round(total / completed.length);
 }

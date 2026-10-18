@@ -7,6 +7,8 @@ export interface Tag {
   duration: string;
   strict: number;
   createdAt: number;
+  /** Apps this key blocks. null/undefined = the main blocked-apps list. */
+  apps?: string[] | null;
 }
 
 export interface BlockedApp {

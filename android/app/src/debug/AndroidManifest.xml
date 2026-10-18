@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Metro (the JS dev server) is the only reason debug builds need the network.
+         Release builds declare no INTERNET permission: the app never goes online. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>

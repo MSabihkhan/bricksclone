@@ -1,129 +1,137 @@
-import React, { useCallback, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AppState, ScrollView, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Screen } from '../components/Screen';
-import { Card } from '../components/Card';
-import { Switch } from '../components/Switch';
-import { SegmentedControl } from '../components/SegmentedControl';
-import { Icon, IconName } from '../components/Icon';
-import { useTheme, useThemeControls } from '../theme/ThemeContext';
+import { useThemeControls } from '../theme/ThemeContext';
 import { ColorMode } from '../theme';
 import { SettingsStackParamList } from '../navigation/types';
 import { db } from '../db';
 import { BlockingModule } from '../native/BlockingModule';
+import { NotificationAccessSheet } from '../components/NotificationAccessSheet';
+import { readPermissions } from '../services/permissionsService';
+import { canBlock } from '../features/permissions';
+import { useWalkthrough } from '../walkthrough/Walkthrough';
+import { parsePersonaEnabled, PERSONA_SETTING_KEY } from '../features/persona';
+import { parseReminders } from '../features/prayer';
+import { APP_VERSION } from '../config/version';
+import { usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Frame, GroupCard, IconTile, Row, SectionLabel, Segmented, TAB_CLEARANCE, Title, Toggle } from '../ui/kit';
 
 type NavProp = NativeStackNavigationProp<SettingsStackParamList>;
 type SessionEndMode = 'brick' | 'timer';
-interface RowProps { icon: IconName; label: string; value?: string; onPress?: () => void; last?: boolean; children?: React.ReactNode }
 
+/** Settings (Fasla Redesign v2), plus the app's extra switches in the same style. */
 export function Settings() {
-  const theme = useTheme();
+  const pal = usePalette();
   const { mode: appearance, setMode: setAppearance } = useThemeControls();
   const navigation = useNavigation<NavProp>();
-  const [brickSummary, setBrickSummary] = useState('None');
-  const [blockedAppsCount, setBlockedAppsCount] = useState(0);
+  const { resetSeen } = useWalkthrough();
+  const [keyNames, setKeyNames] = useState('');
+  const [appsCount, setAppsCount] = useState(0);
   const [permissionsReady, setPermissionsReady] = useState(false);
-  const [strictMode, setStrictMode] = useState(false);
-  const [sessionEndMode, setSessionEndMode] = useState<SessionEndMode>('brick');
+  const [strictDefault, setStrictDefault] = useState(false);
+  const [endMode, setEndMode] = useState<SessionEndMode>('brick');
+  const [silenced, setSilenced] = useState(false);
+  const [silenceSheet, setSilenceSheet] = useState(false);
+  const [personaOn, setPersonaOn] = useState(true);
+  const [prayersOn, setPrayersOn] = useState(0);
+  const [sessionsCount, setSessionsCount] = useState(0);
+
+  const checkSilence = useCallback(() => {
+    Promise.all([BlockingModule.hasNotificationAccess(), BlockingModule.getSilenceEnabled()])
+      .then(([access, enabled]) => setSilenced(access && enabled)).catch(() => {});
+  }, []);
+  // Re-check when returning from Android settings; screen focus alone doesn't fire then.
+  useEffect(() => {
+    checkSilence();
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') checkSilence(); });
+    return () => sub.remove();
+  }, [checkSilence]);
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    Promise.all([db.tags.listTags(), db.blockedApps.listBlockedApps(), db.settings.getAll(), BlockingModule.hasUsageAccess(), BlockingModule.isAccessibilityEnabled()])
-      .then(([tags, apps, sets, usage, accessibility]) => {
+    Promise.all([db.tags.listTags(), db.blockedApps.listBlockedApps(), db.settings.getAll(), readPermissions(), db.sessions.listSessions()])
+      .then(([tags, apps, sets, perms, sessions]) => {
         if (!active) return;
-        setBrickSummary(tags.length === 0 ? 'None' : tags.length === 1 ? tags[0].name : `${tags.length} Bricks`);
-        setBlockedAppsCount(apps.length);
-        setStrictMode(sets.strict_mode === '1');
-        setSessionEndMode(sets.session_end_mode === 'timer' ? 'timer' : 'brick');
-        setPermissionsReady(usage && accessibility);
+        setKeyNames(tags.map(t => t.name).join(', '));
+        setAppsCount(apps.length);
+        setStrictDefault(sets.strict_mode === '1');
+        setEndMode(sets.session_end_mode === 'timer' ? 'timer' : 'brick');
+        setPermissionsReady(canBlock(perms));
+        setPersonaOn(parsePersonaEnabled(sets[PERSONA_SETTING_KEY]));
+        setPrayersOn(parseReminders(sets).filter(r => r.enabled).length);
+        setSessionsCount(sessions.filter(s => s.endTime !== null && s.endedVia !== 'start_failed').length);
       }).catch(error => console.warn('Could not load settings', error));
+    checkSilence();
     return () => { active = false; };
-  }, []));
+  }, [checkSilence]));
 
-  const updateSetting = async (key: string, value: string) => db.settings.set(key, value);
-  const updateEndMode = (value: string) => {
-    const mode: SessionEndMode = value === 'timer' ? 'timer' : 'brick';
-    setSessionEndMode(mode);
-    updateSetting('session_end_mode', mode);
-  };
-  const openPermissions = async () => {
-    if (!(await BlockingModule.hasUsageAccess())) return BlockingModule.requestUsageAccess();
-    if (!(await BlockingModule.isAccessibilityEnabled())) return BlockingModule.requestAccessibility();
-  };
-
-  const Row = ({ icon, label, value, onPress, last, children }: RowProps) => (
-    <Pressable accessibilityRole={onPress ? 'button' : undefined} onPress={onPress} disabled={!onPress}
-      style={({ pressed }) => [styles.row, !last && { borderBottomColor: theme.colors.border, borderBottomWidth: StyleSheet.hairlineWidth }, pressed && styles.pressed]}>
-      <View style={[styles.rowIcon, { backgroundColor: theme.colors.card2 }]}><Icon name={icon} size={18} color={theme.colors.text} /></View>
-      <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
-      {children || (value ? <Text style={[styles.rowValue, { color: theme.colors.muted }]}>{value}</Text> : null)}
-      {onPress ? <Icon name="chevron" size={18} color={theme.colors.faint} /> : null}
-    </Pressable>
-  );
+  const setSetting = (key: string, value: string) => { db.settings.set(key, value).catch(() => {}); };
 
   return (
-    <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={[theme.typography.screenTitle, { color: theme.colors.text }]}>Settings</Text>
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>YOUR SETUP</Text>
-          <Card padding={0} radius={20} style={styles.clipped}>
-            <Row icon="radio" label="My Bricks" value={brickSummary} onPress={() => navigation.navigate('ManageTags')} />
-            <Row icon="smartphone" label="Blocked apps" value={`${blockedAppsCount} apps`} onPress={() => navigation.navigate('ManageBlockedApps')} />
-            <Row icon="shield" label="Permissions" value={permissionsReady ? 'All set' : 'Action needed'} onPress={openPermissions} last />
-          </Card>
-        </View>
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>FOCUS</Text>
-          <Card padding={0} radius={20} style={styles.clipped}>
-            <View style={[styles.modeBlock, { borderBottomColor: theme.colors.border }]}>
-              <View style={styles.modeTitleRow}>
-                <View style={[styles.rowIcon, { backgroundColor: theme.colors.card2 }]}><Icon name="timer" size={18} color={theme.colors.text} /></View>
-                <View style={styles.modeCopy}>
-                  <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Session ending</Text>
-                  <Text style={[styles.modeHint, { color: theme.colors.muted }]}>Choose how a focus session can finish.</Text>
-                </View>
+    <Frame>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: TAB_CLEARANCE }}>
+        <Title>Settings</Title>
+
+        <SectionLabel style={{ marginTop: 22 }}>YOUR SETUP</SectionLabel>
+        <GroupCard>
+          <Row icon="nfc" label="My keys" value={keyNames || 'None'} valueColor={keyNames ? pal.c85858C : pal.cFF5A5F} onPress={() => navigation.navigate('ManageTags')} />
+          <Row icon="phone" label="Blocked apps" value={`${appsCount} apps`} valueColor={appsCount ? pal.c85858C : pal.cFF5A5F} onPress={() => navigation.navigate('ManageBlockedApps')} />
+          <Row icon="bell" label="Silence notifications" value={silenced ? 'On' : 'Off'} onPress={() => setSilenceSheet(true)} />
+          <Row icon="shield" label="Permissions" value={permissionsReady ? 'All set' : 'Action needed'} valueColor={permissionsReady ? pal.c3DDC84 : pal.cFF5A5F} onPress={() => navigation.navigate('Permissions')} last />
+        </GroupCard>
+
+        <SectionLabel>FOCUS</SectionLabel>
+        <GroupCard>
+          <View style={{ gap: 12, paddingVertical: 16, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: pal.c222226 }}>
+            <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
+              <IconTile icon="timer" />
+              <View style={{ gap: 2 }}>
+                <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>Session ending</Text>
+                <Text style={{ fontFamily: fonts.body, fontSize: 12, color: pal.c9A9AA0 }}>How a focus session can finish</Text>
               </View>
-              <SegmentedControl options={[{ label: 'Brick only', value: 'brick' }, { label: 'Time limit', value: 'timer' }]} value={sessionEndMode} onChange={updateEndMode} />
-              <Text style={[styles.modeFootnote, { color: theme.colors.muted }]}>{sessionEndMode === 'brick' ? 'Only tapping the same Brick ends focus.' : 'Focus ends at the Brick’s saved time limit.'}</Text>
             </View>
-            <Row icon="lock" label="Strict mode by default" last>
-              <Switch accessibilityLabel="Strict mode by default" value={strictMode} onValueChange={value => { setStrictMode(value); updateSetting('strict_mode', value ? '1' : '0'); }} />
-            </Row>
-          </Card>
-        </View>
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>RITUALS</Text>
-          <Card padding={0} radius={20} style={styles.clipped}>
-            <Row icon="bell" label="Prayer reminder" value="Local" onPress={() => navigation.navigate('PrayerReminder')} />
-            <Row icon="zap" label="Coming soon" value="7 ideas" onPress={() => navigation.navigate('ComingSoon')} last />
-          </Card>
-        </View>
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>APPEARANCE</Text>
-          <Card padding={14} radius={20}><SegmentedControl options={[{ label: 'Dark', value: 'dark' }, { label: 'Light', value: 'light' }]} value={appearance} onChange={value => setAppearance(value as ColorMode)} /></Card>
-        </View>
-        <View style={styles.section}>
-          <Text style={[styles.sectionLabel, { color: theme.colors.faint }]}>ABOUT</Text>
-          <Card padding={0} radius={20} style={styles.clipped}>
-            <Row icon="clock" label="Session history" onPress={() => navigation.navigate('EmergencyHistory')} />
-            <Row icon="info" label="About Bricks" onPress={() => navigation.navigate('About')} last />
-          </Card>
-        </View>
-        <Text style={[styles.version, { color: theme.colors.faint }]}>BRICKS  ·  VERSION 1.2.0</Text>
+            <Segmented
+              options={[{ value: 'brick', label: 'Key only' }, { value: 'timer', label: 'Time limit' }]}
+              value={endMode}
+              onChange={v => { setEndMode(v); setSetting('session_end_mode', v); }}
+              active="red"
+              track={pal.c0F0F11}
+            />
+            <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: pal.c85858C, paddingHorizontal: 4 }}>
+              {endMode === 'brick' ? 'Only tapping the same key ends focus.' : 'Ends at the key’s session length, or a tap.'}
+            </Text>
+          </View>
+          <Row icon="lock" label="Strict mode by default" last right={
+            <Toggle value={strictDefault} onChange={v => { setStrictDefault(v); setSetting('strict_mode', v ? '1' : '0'); }} label="Strict mode by default" />
+          } />
+        </GroupCard>
+
+        <SectionLabel>APPEARANCE</SectionLabel>
+        <Segmented
+          options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]}
+          value={appearance}
+          onChange={v => setAppearance(v as ColorMode)}
+          active="red"
+          height={44}
+          track={pal.c17171A}
+        />
+
+        <SectionLabel>MORE</SectionLabel>
+        <GroupCard>
+          <Row icon="moon" label="Prayer reminders" value={`${prayersOn} on`} onPress={() => navigation.navigate('PrayerReminder')} />
+          <Row icon="clock" label="History" value={`${sessionsCount} sessions`} onPress={() => navigation.navigate('EmergencyHistory')} />
+          <Row icon="smile" label="Card character" sub="The face on your key and its short lines" right={
+            <Toggle value={personaOn} onChange={v => { setPersonaOn(v); setSetting(PERSONA_SETTING_KEY, v ? '1' : '0'); BlockingModule.setPersonaEnabled(v).catch(() => {}); }} label="Card character" />
+          } />
+          <Row icon="zap" label="Show tips again" onPress={() => { resetSeen().then(() => navigation.getParent()?.navigate('HomeTab' as never)).catch(() => {}); }} />
+          {/* Runs the onboarding again; nothing is reset. */}
+          <Row icon="refresh" label="Replay setup" onPress={() => navigation.getParent()?.getParent()?.reset({ index: 0, routes: [{ name: 'OnboardingStack' as never }] })} />
+          <Row icon="info" label="About" value={`v${APP_VERSION}`} onPress={() => navigation.navigate('About')} last />
+        </GroupCard>
       </ScrollView>
-    </Screen>
+      <NotificationAccessSheet visible={silenceSheet} onClose={() => { setSilenceSheet(false); checkSilence(); }} onChanged={() => checkSilence()} />
+    </Frame>
   );
 }
-
-const styles = StyleSheet.create({
-  scroll: { paddingTop: 18, paddingBottom: 42, gap: 26 }, section: { gap: 10 },
-  sectionLabel: { fontFamily: 'IBMPlexMono-Medium', fontSize: 11, letterSpacing: 0.5, marginLeft: 4 }, clipped: { overflow: 'hidden' },
-  row: { minHeight: 62, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }, pressed: { opacity: 0.62 },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '600' }, rowValue: { fontFamily: 'IBMPlexMono-Regular', fontSize: 11, maxWidth: 120 },
-  modeBlock: { padding: 16, gap: 14, borderBottomWidth: StyleSheet.hairlineWidth }, modeTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  modeCopy: { flex: 1, gap: 2 }, modeHint: { fontSize: 12, lineHeight: 17 }, modeFootnote: { fontFamily: 'IBMPlexMono-Regular', fontSize: 11, lineHeight: 16 },
-  version: { fontFamily: 'IBMPlexMono-Regular', fontSize: 10, textAlign: 'center', letterSpacing: 0.4 },
-});

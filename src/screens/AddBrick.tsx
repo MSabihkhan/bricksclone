@@ -1,489 +1,225 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Animated, Easing, Switch, ScrollView, BackHandler, Alert, AppState } from 'react-native';
-import { Screen } from '../components/Screen';
-import { Icon } from '../components/Icon';
-import { useTheme } from '../theme/ThemeContext';
-import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, BackHandler, Easing, Pressable, ScrollView, Text, View } from 'react-native';
+import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../navigation/types';
-import { nfcService, formatTagId, normalizeTagId } from '../services/nfc';
+import { normalizeTagId } from '../services/nfc';
 import { db } from '../db';
-import { useFocusStore } from '../state/useFocusStore';
-import {
-  LOCATIONS, validateBrickName, BRICK_MODES, DURATIONS,
-  modeLabel, buildBrickSummary
-} from '../utils/onboarding';
-import { NfcTag } from '../services/nfc/types';
-import { Tag } from '../db/types';
+import { BRICK_MODES, DURATIONS, durationLabel, LOCATIONS, modeLabel, validateBrickName } from '../utils/onboarding';
 import { describeError } from '../utils/describeError';
-import { BrickMark } from '../components/BrickMark';
+import { appsForBrick } from '../features/brickApps';
+import { useFocusUi } from '../state/useFocusUi';
+import { usePairScan } from '../hooks/usePairScan';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { ScanSheet } from '../components/ScanSheet';
+import { BrickCard } from '../components/BrickCard';
+import { KeyNameInput, PlaceGrid, placeIcon, StepBar } from '../components/KeyForm';
+import { faslaAlert } from '../components/FaslaDialog';
+import { RED, usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Eyebrow, Frame, Glyph, IconTile, PillButton, RadialBg, RoundButton, SectionLabel, Title, Toggle } from '../ui/kit';
 
-type Step = 'scan' | 'detected' | 'name' | 'block' | 'done';
+type Step = 'name' | 'focus' | 'ready';
+type NavProp = NativeStackNavigationProp<HomeStackParamList>;
 
+/**
+ * Register key (Fasla Redesign v2): Step 1 · Name → Step 2 · Focus settings → Key ready.
+ * Opened from a pairing scan with the new key's id; without one it scans first.
+ */
 export function AddBrick() {
-  const { colors } = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<HomeStackParamList>>();
-  
-  const [step, setStep] = useState<Step>('scan');
-  const [registeredTag, setRegisteredTag] = useState<Tag | null>(null);
-  
-  const [tagId, setTagId] = useState('');
-  const [disabled, setDisabled] = useState(false);
-  const [unsupported, setUnsupported] = useState(false);
-
-  const [nbName, setNbName] = useState('');
-  const [nbLocation, setNbLocation] = useState(LOCATIONS[0].key);
-  const [nbMode, setNbMode] = useState<string>('deep');
-  const [nbDuration, setNbDuration] = useState('50');
-  const [nbStrict, setNbStrict] = useState(true);
-  const [globalAppsCount, setGlobalAppsCount] = useState(0);
-
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-
-  // NFC scanning
-  useEffect(() => {
-    let unmounted = false;
-    async function checkNfc() {
-      const isSupported = await nfcService.isSupported();
-      if (!isSupported) {
-        if (!unmounted) setUnsupported(true);
-        return;
-      }
-      const isEnabled = await nfcService.isEnabled();
-      if (!isEnabled) {
-        if (!unmounted) setDisabled(true);
-      }
-    }
-    checkNfc();
-    return () => { unmounted = true; };
-  }, []);
+  const pal = usePalette();
+  const reduce = useReducedMotion();
+  const navigation = useNavigation<NavProp>();
+  const route = useRoute<RouteProp<HomeStackParamList, 'AddBrick'>>();
+  const [tagId, setTagId] = useState<string | null>(route.params?.tagId ? normalizeTagId(route.params.tagId) : null);
+  const [step, setStep] = useState<Step>('name');
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState(LOCATIONS[0].key);
+  const [mode, setMode] = useState<string>('deep');
+  const [duration, setDuration] = useState('50');
+  const [strict, setStrict] = useState(true);
+  const [appsCount, setAppsCount] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const rise = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Promise.all([
-      db.blockedApps.listBlockedApps(),
-      db.settings.get('strict_mode'),
-    ]).then(([apps, strictDefault]) => {
-      setGlobalAppsCount(apps.length);
-      setNbStrict(strictDefault !== '0');
+    Promise.all([db.blockedApps.listBlockedApps(), db.settings.get('strict_mode')]).then(([apps, strictDefault]) => {
+      setAppsCount(apps.length);
+      setStrict(strictDefault !== '0');
     }).catch(() => {});
   }, []);
 
+  const found = usePairScan(!tagId, id => setTagId(id));
+
+  // Hardware back walks the steps; Key ready goes home.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', async (state) => {
-      if (state !== 'active') return;
-      const supported = await nfcService.isSupported();
-      const enabled = supported ? await nfcService.isEnabled() : false;
-      setUnsupported(!supported);
-      setDisabled(supported && !enabled);
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (step === 'focus') { setStep('name'); return true; }
+      if (step === 'ready') { navigation.popToTop(); return true; }
+      return false;
     });
     return () => sub.remove();
-  }, []);
+  }, [navigation, step]);
 
   useEffect(() => {
-    let unmounted = false;
-    let unsubscribe: (() => void) | undefined;
-    if (step === 'scan' && !disabled && !unsupported) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1, duration: 2400, easing: Easing.out(Easing.ease), useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 0, duration: 0, useNativeDriver: true })
-        ])
-      ).start();
+    if (step !== 'ready') return;
+    rise.setValue(reduce ? 1 : 0);
+    if (!reduce) Animated.timing(rise, { toValue: 1, duration: 500, delay: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [reduce, rise, step]);
 
-      unsubscribe = nfcService.subscribe(async (tag: NfcTag | null) => {
-        if (tag && !unmounted) {
-          setTagId(tag.id);
-          const existing = await db.tags.getTagById(normalizeTagId(tag.id));
-          if (existing && !unmounted) {
-            setRegisteredTag(existing);
-          } else if (!unmounted) {
-            setRegisteredTag(null);
-          }
-          if (!unmounted) {
-            setStep('detected');
-          }
-        }
-      });
-    } else {
-      pulseAnim.stopAnimation();
-    }
-    return () => {
-      unmounted = true;
-      unsubscribe?.();
-    };
-  }, [step, disabled, unsupported, pulseAnim]);
-
-  // BackHandler to prevent going back after 'done'
-  useEffect(() => {
-    const onBackPress = () => {
-      if (step === 'done') {
-        navigation.goBack();
-        return true;
-      }
-      return false;
-    };
-    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => sub.remove();
-  }, [step, navigation]);
-
-  const [saving, setSaving] = useState(false);
-
-  const saveBrick = async () => {
-    if (saving) return;
+  const create = async () => {
+    if (saving || !tagId) return;
     setSaving(true);
     try {
-      const id = normalizeTagId(tagId);
-      const loc = LOCATIONS.find(l => l.key === nbLocation);
-      const finalName = nbName.trim() || (loc ? loc.label : 'New Brick');
+      const finalName = name.trim() || LOCATIONS.find(l => l.key === location)?.label || 'New key';
       await db.tags.registerTag({
-        id,
-        name: finalName,
-        location: nbLocation,
-        mode: nbMode,
-        categories: {},
-        duration: nbDuration,
-        strict: nbStrict ? 1 : 0,
-        createdAt: Math.floor(Date.now() / 1000)
+        id: tagId, name: finalName, location, mode, categories: {}, duration, strict: strict ? 1 : 0,
+        createdAt: Math.floor(Date.now() / 1000),
       });
-      setNbName(finalName);
-      setStep('done');
+      const apps = await db.blockedApps.listBlockedApps();
+      setAppsCount(appsForBrick({ apps: null }, apps.map(a => a.packageName)).length);
+      setName(finalName);
+      setStep('ready');
     } catch (err) {
-      Alert.alert('Could not save this Brick', describeError(err));
+      faslaAlert('Could not save this key', describeError(err));
     } finally {
       setSaving(false);
     }
   };
 
-  const startFocusingNow = async () => {
-    try {
-      // Always block the apps the user actually picked. The old path expanded the Brick's
-      // categories into a hardcoded package list, which blocked apps that were not installed
-      // and missed the ones that were.
-      await useFocusStore.getState().startSession(normalizeTagId(tagId));
-      navigation.popToTop();
-    } catch (err) {
-      Alert.alert('Could not start the session', describeError(err));
-    }
+  const startNow = () => {
+    if (tagId) useFocusUi.getState().setStartWith(tagId);
+    navigation.popToTop();
   };
 
-  const obTint = colors.accent + '24'; // ~14% tint approx
-
-  const renderHeader = (title: string, onBack: () => void) => (
-    <View style={styles.headerRow}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={onBack} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Icon name="back" size={20} color={colors.text} />
-      </TouchableOpacity>
-      <View style={styles.headerCenter}>
-        <Text style={[styles.eyebrow, { color: colors.faint }]}>REGISTER BRICK</Text>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{title}</Text>
-      </View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Icon name="x" size={18} color={colors.muted} />
-      </TouchableOpacity>
-    </View>
+  const pairTrouble = () => faslaAlert(
+    'Can’t find the key?',
+    'Check that NFC is on, then hold the top of your phone flat on the card for a second. Cases thicker than a few millimetres can get in the way.',
   );
 
-  if (step === 'scan') {
-    const pulseScale = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.8] });
-    const pulseOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
-    
+  if (!tagId) {
     return (
-      <Screen style={styles.container}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Icon name="x" size={18} color={colors.muted} />
-        </TouchableOpacity>
-        
-        {disabled || unsupported ? (
-          <View style={styles.contentCenter}>
-            <View style={[styles.scanIconBox, { backgroundColor: obTint }]}>
-              <Icon name="radio" size={44} color={colors.accent} />
-            </View>
-            <Text style={[styles.scanTitle, { color: colors.text }]}>{disabled ? 'NFC is disabled' : 'NFC unsupported'}</Text>
-            <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent, marginTop: 20 }]} onPress={() => disabled ? nfcService.openSettings() : navigation.goBack()}>
-              <Text style={styles.btnPrimaryText}>{disabled ? 'Open NFC settings' : 'Go back'}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.contentCenter}>
-            <View style={styles.scannerBox}>
-              <Animated.View style={[styles.pulseRing, { borderColor: colors.accent, transform: [{ scale: pulseScale }], opacity: pulseOpacity }]} />
-              <BrickMark size={98} />
-            </View>
-            <Text style={[styles.scanTitle, { color: colors.text }]}>Tap your Brick</Text>
-            <Text style={[styles.scanSub, { color: colors.muted }]}>Hold the top of your phone near the Brick.</Text>
-            <Text style={[styles.listening, { color: colors.accent }]}>LISTENING FOR NFC</Text>
-          </View>
-        )}
-      </Screen>
+      <Frame>
+        <ScanSheet visible scanFor="pair" done={found} onClose={() => navigation.goBack()} onTrouble={pairTrouble} />
+      </Frame>
     );
   }
 
-  if (step === 'detected') {
-    if (registeredTag) {
-      const modeLbl = modeLabel(registeredTag.mode);
-      const appsN = Object.values(registeredTag.categories || {}).filter(Boolean).length;
-      return (
-        <Screen style={styles.container}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Icon name="x" size={18} color={colors.muted} />
-          </TouchableOpacity>
-          <View style={styles.contentCenter}>
-            <BrickMark size={134} />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-              <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.text }} />
-              <Text style={[styles.detectedEyebrow, { color: colors.text }]}>REGISTERED BRICK</Text>
-            </View>
-            <Text style={[styles.detectedTitle, { color: colors.text, textAlign: 'center' }]}>{registeredTag.name} is already registered</Text>
-            <Text style={[styles.detectedId, { color: colors.muted, fontSize: 14 }]}>{modeLbl} · {appsN} apps</Text>
-          </View>
-          <View style={styles.bottomGap}>
-            <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent }]} onPress={async () => {
-               await useFocusStore.getState().startSession(registeredTag.id);
-               navigation.popToTop();
-            }}>
-              <Text style={styles.btnPrimaryText}>Start session</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnGhost, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
-              <Text style={[styles.btnGhostText, { color: colors.text }]}>Back</Text>
-            </TouchableOpacity>
-          </View>
-        </Screen>
-      );
-    }
-    return (
-      <Screen style={styles.container}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => navigation.goBack()} style={[styles.closeScan, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Icon name="x" size={18} color={colors.muted} />
-        </TouchableOpacity>
-        <View style={styles.contentCenter}>
-          <BrickMark size={134} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 14 }}>
-            <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.accent }} />
-            <Text style={[styles.detectedEyebrow, { color: colors.accent }]}>NEW BRICK DETECTED</Text>
-          </View>
-          <Text style={[styles.detectedTitle, { color: colors.text }]}>Unregistered Brick</Text>
-          <Text style={[styles.detectedId, { color: colors.muted }]}>ID · {formatTagId(tagId)}</Text>
+  const header = (title: string, onBack: () => void) => (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <RoundButton icon="back" label="Back" onPress={onBack} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Eyebrow>REGISTER KEY</Eyebrow>
+          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 15, color: pal.cF5F5F2 }}>{title}</Text>
         </View>
-        <View style={styles.bottomGap}>
-          <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent }]} onPress={() => setStep('name')}>
-            <Text style={styles.btnPrimaryText}>Register this Brick</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.btnGhost, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.btnGhostText, { color: colors.text }]}>Not now</Text>
-          </TouchableOpacity>
-        </View>
-      </Screen>
-    );
-  }
+        <RoundButton icon="close" label="Close" iconSize={16} onPress={() => navigation.popToTop()} />
+      </View>
+      <StepBar step={step === 'name' ? 1 : 2} />
+    </>
+  );
 
   if (step === 'name') {
-    const locIcon = LOCATIONS.find(l => l.key === nbLocation)?.icon || 'radio';
-    const canContinue = validateBrickName(nbName);
+    const canContinue = validateBrickName(name);
     return (
-      <Screen style={{ paddingHorizontal: 0 }}>
-        {renderHeader('Step 1 of 2 · Name', () => setStep('detected'))}
-        <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.scrollPad}>
-          <View style={[styles.nameIconBox, { backgroundColor: obTint, borderColor: colors.accent }]}>
-            <Icon name={locIcon} size={34} color={colors.accent} />
+      <Frame>
+        {header('Step 1 of 2 · Name', () => navigation.goBack())}
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+          <View style={{ marginTop: 26, width: 72, height: 72, borderRadius: 22, backgroundColor: pal.c2A1012, borderWidth: 1, borderColor: pal.c5A1C1F, alignItems: 'center', justifyContent: 'center' }}>
+            <Glyph name={placeIcon(location)} size={30} color={pal.cFF5A5F} />
           </View>
-          <Text style={[styles.title27, { color: colors.text }]}>Name this Brick</Text>
-          <Text style={[styles.sub14, { color: colors.muted }]}>Where does it live? You'll tap it here to start focusing.</Text>
-          
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
-            placeholder="e.g. Desk"
-            placeholderTextColor={colors.muted}
-            value={nbName}
-            onChangeText={setNbName}
-          />
-          
-          <Text style={[styles.label11, { color: colors.faint }]}>QUICK PICK</Text>
-          <View style={styles.grid3}>
-            {LOCATIONS.map(loc => {
-              const on = loc.key === nbLocation;
-              return (
-                <TouchableOpacity key={loc.key} style={[styles.locBtn, { backgroundColor: on ? colors.accent : colors.card, borderColor: on ? colors.accent : colors.border }]} onPress={() => {
-                  setNbLocation(loc.key);
-                  if (!nbName) setNbName(loc.label);
-                }}>
-                  <Icon name={loc.icon} size={20} color={on ? '#fff' : colors.muted} />
-                  <Text style={[styles.locLabel, { color: on ? '#fff' : colors.muted }]}>{loc.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          <Title style={{ marginTop: 18 }}>Name this key</Title>
+          <Text style={{ marginTop: 8, fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: pal.c9A9AA0 }}>Where does it live? You’ll tap it here to start focusing.</Text>
+          <KeyNameInput value={name} onChange={setName} placeholder="e.g. Desk" />
+          <SectionLabel style={{ marginTop: 20 }}>QUICK PICK</SectionLabel>
+          <PlaceGrid location={location} name={name} onPick={(loc, n) => { setLocation(loc); setName(n); }} />
+          <View style={{ flex: 1, minHeight: 24 }} />
+          <PillButton label="Continue" disabled={!canContinue} onPress={() => setStep('focus')} style={{ marginBottom: 18 }} />
         </ScrollView>
-        <View style={[styles.bottomPad, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
-          <TouchableOpacity 
-            style={[styles.btnPrimary, { backgroundColor: canContinue ? colors.accent : colors.card2 }]} 
-            disabled={!canContinue} 
-            onPress={() => setStep('block')}
-          >
-            <Text style={[styles.btnPrimaryText, { color: canContinue ? '#fff' : colors.faint }]}>Continue</Text>
-          </TouchableOpacity>
-        </View>
-      </Screen>
+      </Frame>
     );
   }
 
-  if (step === 'block') {
-    const activeName = nbName.trim() || 'New Brick';
+  if (step === 'focus') {
     return (
-      <Screen style={{ paddingHorizontal: 0 }}>
-        {renderHeader('Step 2 of 2 · Focus settings', () => setStep('name'))}
-        <ScrollView style={styles.scrollFlex} contentContainerStyle={styles.scrollPad}>
-          <Text style={[styles.title23, { color: colors.text }]}>Configure <Text style={{ color: colors.accent }}>{activeName}</Text></Text>
-          <Text style={[styles.sub14, { color: colors.muted }]}>{globalAppsCount} globally selected apps will be blocked. You can change them in Settings.</Text>
-          
-          <View style={styles.modeList}>
+      <Frame>
+        {header('Step 2 of 2 · Focus settings', () => setStep('name'))}
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+          <SectionLabel style={{ marginTop: 22 }}>FOCUS MODE</SectionLabel>
+          <View style={{ gap: 8 }}>
             {BRICK_MODES.map(m => {
-              const on = m.key === nbMode;
+              const on = m.key === mode;
               return (
-                <TouchableOpacity key={m.key} style={[styles.modeRow, { backgroundColor: on ? obTint : colors.card, borderColor: on ? colors.accent : colors.border }]} onPress={() => setNbMode(m.key)}>
-                  <View style={[styles.modeDot, { borderColor: on ? colors.accent : colors.border, backgroundColor: on ? colors.accent : 'transparent' }]}>
-                    {on && <Icon name="check" size={13} color="#fff" />}
+                <Pressable key={m.key} onPress={() => setMode(m.key)} accessibilityRole="radio" accessibilityState={{ selected: on }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1, borderColor: on ? pal.c5A1C1F : pal.c232327, backgroundColor: on ? pal.c1C0E10 : pal.c141417 }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: on ? RED : pal.c3A3A40, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: on ? RED : 'transparent' }} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.modeTitle, { color: colors.text }]}>{m.label}</Text>
-                    <Text style={[styles.modeDesc, { color: colors.muted }]}>{m.desc}</Text>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 15, color: pal.cF5F5F2 }}>{m.label}</Text>
+                    <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0 }}>{m.desc}</Text>
                   </View>
-                </TouchableOpacity>
+                </Pressable>
               );
             })}
           </View>
-          
-          <Text style={[styles.label11, { color: colors.faint }]}>SESSION LENGTH</Text>
-          <View style={styles.durGrid}>
+
+          <SectionLabel style={{ marginTop: 22 }}>SESSION LENGTH</SectionLabel>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {DURATIONS.map(d => {
-              const on = nbDuration === d.key;
+              const on = d.key === duration;
               return (
-                <TouchableOpacity key={d.key} style={[styles.durBtn, { backgroundColor: on ? colors.accent : colors.card, borderColor: on ? colors.accent : colors.border }]} onPress={() => setNbDuration(d.key)}>
-                  <Text style={[styles.durLabel, { color: on ? '#fff' : colors.muted }]}>{d.label}</Text>
-                </TouchableOpacity>
+                <Pressable key={d.key} onPress={() => setDuration(d.key)} accessibilityRole="radio" accessibilityState={{ selected: on }}
+                  style={{ width: '48.6%', height: 52, borderRadius: 999, borderWidth: 1, borderColor: on ? RED : pal.c232327, backgroundColor: on ? RED : pal.c141417, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 15, color: on ? '#FFFFFF' : pal.cB4B4BA }}>{d.label}</Text>
+                </Pressable>
               );
             })}
           </View>
-          
-          <View style={[styles.strictRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.strictIconBox, { backgroundColor: colors.card2 }]}>
-              <Icon name="shield" size={18} color={colors.text} />
+
+          <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 20, backgroundColor: pal.c17171A }}>
+            <IconTile icon="lock" />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>Strict mode</Text>
+              <Text style={{ fontFamily: fonts.body, fontSize: 12, color: pal.c9A9AA0 }}>Can’t unlock until the session ends</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.strictTitle, { color: colors.text }]}>Strict Mode</Text>
-              <Text style={[styles.strictSub, { color: colors.muted }]}>Can't unlock until the session ends</Text>
-            </View>
-            <Switch accessibilityLabel="Strict Mode for this Brick" value={nbStrict} onValueChange={setNbStrict} trackColor={{ true: colors.accent }} />
+            <Toggle value={strict} onChange={setStrict} label="Strict mode for this key" />
           </View>
         </ScrollView>
-        <View style={[styles.bottomPad, { borderTopColor: colors.border, borderTopWidth: 1 }]}>
-          <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: colors.accent, opacity: saving ? 0.6 : 1 }]}
-            disabled={saving}
-            onPress={saveBrick}
-          >
-            <Text style={styles.btnPrimaryText}>{saving ? 'Saving…' : 'Create Brick'}</Text>
-          </TouchableOpacity>
+        <View style={{ paddingTop: 14, paddingBottom: 18, borderTopWidth: 1, borderTopColor: pal.c1C1C20 }}>
+          <PillButton label={saving ? 'Saving…' : 'Create key'} disabled={saving} onPress={() => { create().catch(() => {}); }} />
         </View>
-      </Screen>
+      </Frame>
     );
   }
 
-  if (step === 'done') {
-    const summaryChips = buildBrickSummary(nbMode, globalAppsCount, nbDuration);
-    return (
-      <Screen style={styles.container}>
-        <View style={styles.contentCenter}>
-          <BrickMark size={104} />
-          <Text style={[styles.doneTitle, { color: colors.text }]}>"{nbName}" is ready</Text>
-          <Text style={[styles.doneSub, { color: colors.muted }]}>Tap this Brick anytime to start a {modeLabel(nbMode)} session.</Text>
-          <View style={styles.chipsWrap}>
-            {summaryChips.map((sc, i) => (
-              <View key={i} style={[styles.chip, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <Icon name={sc.icon} size={14} color={colors.accent} />
-                <Text style={[styles.chipLabel, { color: colors.text }]}>{sc.label}</Text>
-              </View>
-            ))}
-          </View>
+  const fade = { opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }] };
+  const chips = [modeLabel(mode), `${appsCount || 'No'} apps`, durationLabel(duration)];
+  return (
+    <Frame gutter={24} bg={<RadialBg spec={{ cx: 0.5, cy: 0.28, rx: 0.8, ry: 0.4, stops: [[pal.c2A1012, 0], [pal.c0B0B0D, 0.7], [pal.c0B0B0D, 1]] }} />}>
+      <View style={{ flex: 1, alignItems: 'center' }}>
+        <Eyebrow color={pal.c3DDC84} spacing={0.2} style={{ marginTop: 20 }}>PAIRED</Eyebrow>
+        <View style={{ height: 282, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ transform: [{ rotate: '-6deg' }] }}><BrickCard width={240} face="session_completed" /></View>
         </View>
-        <View style={styles.bottomGap}>
-          <TouchableOpacity style={[styles.btnPrimary, { backgroundColor: colors.accent }]} onPress={startFocusingNow}>
-            <Text style={styles.btnPrimaryText}>Start focusing now</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.btnGhost, { borderColor: colors.border }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.btnGhostText, { color: colors.text }]}>Back to home</Text>
-          </TouchableOpacity>
-        </View>
-      </Screen>
-    );
-  }
-
-  return null;
+        <Animated.Text style={[{ fontFamily: fonts.display, fontSize: 38, letterSpacing: -1.7, lineHeight: 40, color: pal.cF5F5F2, textAlign: 'center' }, fade]} accessibilityRole="header">
+          “{name}” is ready
+        </Animated.Text>
+        <Animated.Text style={[{ marginTop: 12, fontFamily: fonts.body, fontSize: 16, lineHeight: 24, color: pal.c9A9AA0, textAlign: 'center', maxWidth: 290 }, fade]}>
+          Tap this key any time to start a {modeLabel(mode)} session.
+        </Animated.Text>
+        <Animated.View style={[{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 22 }, fade]}>
+          {chips.map(c => (
+            <View key={c} style={{ height: 38, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: pal.c2A2A2F, backgroundColor: pal.c141417, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: RED }} />
+              <Text style={{ fontFamily: fonts.body, fontSize: 14, color: pal.cF5F5F2 }}>{c}</Text>
+            </View>
+          ))}
+        </Animated.View>
+        <View style={{ flex: 1 }} />
+        <PillButton label="Start focusing now" onPress={startNow} style={{ alignSelf: 'stretch' }} />
+        <PillButton label="Back to home" kind="outline" height={56} onPress={() => navigation.popToTop()} style={{ alignSelf: 'stretch', marginTop: 10, marginBottom: 16 }} />
+      </View>
+    </Frame>
+  );
 }
-
-const styles = StyleSheet.create({
-  container: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 24 },
-  closeScan: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-start' },
-  contentCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scannerBox: { width: 190, height: 190, alignItems: 'center', justifyContent: 'center', marginBottom: 48 },
-  pulseRing: { position: 'absolute', width: 190, height: 190, borderRadius: 95, borderWidth: 1 },
-  scanIconBox: { width: 98, height: 98, borderRadius: 28, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 18 }, shadowRadius: 46, shadowOpacity: 0.5, elevation: 12 },
-  scanTitle: { fontFamily: 'BricolageGrotesque', fontSize: 32, fontWeight: '400', letterSpacing: -1.5, textAlign: 'center', lineHeight: 36, marginBottom: 12 },
-  scanSub: { fontSize: 15, fontWeight: '400', textAlign: 'center' },
-  listening: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.6, marginTop: 20 },
-  
-  detectedBox: { width: 134, height: 134, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 32, shadowOffset: { width: 0, height: 20 }, shadowRadius: 52, shadowOpacity: 0.4, elevation: 12, overflow: 'hidden' },
-  glossyBar: { position: 'absolute', top: 16, left: 18, right: 18, height: 24, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.3)' },
-  detectedEyebrow: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, fontWeight: '500', letterSpacing: 0.6 },
-  detectedTitle: { fontFamily: 'BricolageGrotesque', fontSize: 28, fontWeight: '400', letterSpacing: -1.3, marginBottom: 8 },
-  detectedId: { fontFamily: 'IBMPlexMono-Regular', fontSize: 12, fontVariant: ['tabular-nums'] },
-  
-  bottomGap: { gap: 12 },
-  btnPrimary: { width: '100%', height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  btnGhost: { width: '100%', height: 56, borderRadius: 17, borderWidth: StyleSheet.hairlineWidth, alignItems: 'center', justifyContent: 'center' },
-  btnGhostText: { fontSize: 15, fontWeight: '700' },
-
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22, paddingTop: 18, paddingBottom: 14 },
-  circleBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { flex: 1, paddingHorizontal: 12 },
-  eyebrow: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, fontWeight: '500', letterSpacing: 0.5 },
-  headerTitle: { fontSize: 15, fontWeight: '800', marginTop: 1 },
-
-  scrollFlex: { flex: 1 },
-  scrollPad: { paddingHorizontal: 26, paddingBottom: 26, paddingTop: 10 },
-  bottomPad: { paddingHorizontal: 26, paddingBottom: 30, paddingTop: 14 },
-
-  nameIconBox: { width: 76, height: 76, borderRadius: 22, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
-  title27: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.4, marginBottom: 8 },
-  sub14: { fontSize: 14, fontWeight: '500', marginBottom: 22, lineHeight: 20 },
-  input: { width: '100%', height: 58, borderRadius: 16, borderWidth: 1, paddingHorizontal: 18, fontSize: 20, fontWeight: '800' },
-  
-  label11: { fontSize: 11, fontWeight: '800', letterSpacing: 0.14 * 11, marginTop: 24, marginBottom: 12 },
-  grid3: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  locBtn: { width: '31%', paddingVertical: 13, paddingHorizontal: 6, borderRadius: 14, borderWidth: 1, alignItems: 'center', gap: 7 },
-  locLabel: { fontSize: 11, fontWeight: '700' },
-  
-  title23: { fontFamily: 'BricolageGrotesque', fontSize: 26, fontWeight: '400', letterSpacing: -1.1, marginBottom: 20 },
-  modeList: { gap: 10 },
-  modeRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, gap: 13 },
-  modeDot: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  modeTitle: { fontSize: 15, fontWeight: '800' },
-  modeDesc: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  catBtn: { width: '31%', paddingVertical: 14, paddingHorizontal: 6, borderRadius: 15, borderWidth: 1, alignItems: 'center', gap: 8 },
-  
-  durGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  durBtn: { flexGrow: 1, flexBasis: '40%', paddingVertical: 13, paddingHorizontal: 8, borderRadius: 13, borderWidth: 1, alignItems: 'center' },
-  durLabel: { fontSize: 13, fontWeight: '700' },
-
-  strictRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, marginTop: 16, gap: 14 },
-  strictIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  strictTitle: { fontSize: 14, fontWeight: '700' },
-  strictSub: { fontSize: 12, fontWeight: '500', marginTop: 1 },
-
-  doneCheck: { width: 104, height: 104, borderRadius: 52, alignItems: 'center', justifyContent: 'center', marginBottom: 26, shadowOffset: { width: 0, height: 18 }, shadowRadius: 46, shadowOpacity: 0.5, elevation: 12 },
-  doneTitle: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.4, textAlign: 'center', marginBottom: 10 },
-  doneSub: { fontSize: 15, fontWeight: '500', textAlign: 'center', lineHeight: 22.5, paddingHorizontal: 20, marginBottom: 26 },
-  chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 9 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 9, paddingHorizontal: 14, borderRadius: 99, borderWidth: 1 },
-  chipLabel: { fontSize: 13, fontWeight: '700' },
-});

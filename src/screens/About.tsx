@@ -1,94 +1,54 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Screen } from '../components/Screen';
-import { Icon } from '../components/Icon';
-import { useTheme } from '../theme/ThemeContext';
+import { Linking, ScrollView, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { PRIVACY_POLICY_URL } from '../config/links';
+import { APP_VERSION } from '../config/version';
+import { faslaAlert } from '../components/FaslaDialog';
+import { RED, usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Frame, GroupCard, Row, RoundButton } from '../ui/kit';
 
+/** About (Fasla Redesign v2). */
 export function About() {
-  const { colors } = useTheme();
+  const pal = usePalette();
   const navigation = useNavigation();
 
   const handlePrivacy = () => {
-    Alert.alert('Privacy & Data', 'All your focus sessions, settings, and blocked app data are stored locally on your device. We do not track or upload any personal information.');
+    // Full policy on the web; if no browser can open it, the short version still shows in the app.
+    Linking.openURL(PRIVACY_POLICY_URL).catch(() => {
+      faslaAlert('Privacy policy', `Your sessions, keys, settings and blocked-app data stay on this phone. fasla has no account and does not send them anywhere.
+
+Full policy: ${PRIVACY_POLICY_URL}`, undefined, { icon: 'shield' });
+    });
   };
 
   const handleLicenses = () => {
-    Alert.alert('Open-source licenses', 'Bricks uses React Native, React Navigation, Zustand, SQLite, React Native NFC Manager, and React Native SVG. Dependency license texts are distributed with their packages.');
+    faslaAlert('Open-source licenses', 'fasla uses React Native, React Navigation, Zustand, SQLite, React Native NFC Manager, and React Native SVG. Fonts: Archivo, Geist and JetBrains Mono (SIL Open Font License). Dependency license texts are distributed with their packages.', undefined, { icon: 'doc' });
   };
 
   return (
-    <Screen style={{ paddingHorizontal: 0 }}>
-      <View style={styles.header}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Go back" onPress={() => navigation.goBack()} style={[styles.circleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Icon name="back" size={20} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>About</Text>
-        <View style={{ width: 38 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollPad}>
-        <View style={styles.hero}>
-          <View style={[styles.appIconBox, { backgroundColor: colors.accent }]}>
-            <View style={styles.glyph} />
-          </View>
-          <Text style={[styles.appName, { color: colors.text }]}>Bricks</Text>
-          <Text style={[styles.appTagline, { color: colors.muted }]}>NFC focus companion</Text>
-          <View style={[styles.versionPill, { borderColor: colors.border }]}>
-            <Text style={[styles.versionText, { color: colors.muted }]}>v1.2.0</Text>
-          </View>
+    <Frame>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: 'center', paddingBottom: 40 }}>
+        <View style={{ alignSelf: 'stretch', height: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <RoundButton icon="back" label="Back" onPress={() => navigation.goBack()} style={{ position: 'absolute', left: 0 }} />
+          <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 17, color: pal.cF5F5F2 }} accessibilityRole="header">About</Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity style={styles.row} onPress={handlePrivacy}>
-            <View style={[styles.iconBox, { backgroundColor: colors.card2 }]}>
-              <Icon name="info" size={18} color={colors.text} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Privacy & Data</Text>
-              <Text style={[styles.rowSub, { color: colors.muted }]}>All data stays on your device</Text>
-            </View>
-            <Icon name="chevron" size={20} color={colors.faint} />
-          </TouchableOpacity>
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          
-          <TouchableOpacity style={styles.row} onPress={handleLicenses}>
-            <View style={[styles.iconBox, { backgroundColor: colors.card2 }]}>
-              <Icon name="info" size={18} color={colors.text} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.rowLabel, { color: colors.text }]}>Licenses</Text>
-            </View>
-            <Icon name="chevron" size={20} color={colors.faint} />
-          </TouchableOpacity>
+        <View style={{ marginTop: 48, width: 112, height: 112, borderRadius: 34, backgroundColor: pal.c17171A, alignItems: 'center', justifyContent: 'center', shadowColor: RED, shadowOpacity: 0.35, shadowRadius: 30, shadowOffset: { width: 0, height: 24 }, elevation: 18 }}>
+          <Text style={{ fontFamily: fonts.display, fontSize: 68, lineHeight: 78, color: RED }}>f</Text>
+        </View>
+        <Text style={{ marginTop: 22, fontFamily: fonts.display, fontSize: 36, letterSpacing: -1.8, color: pal.cF5F5F2 }}>fasla<Text style={{ color: RED }}>.</Text></Text>
+        <Text style={{ marginTop: 4, fontFamily: fonts.body, fontSize: 15, color: pal.c9A9AA0 }}>NFC focus companion</Text>
+        <View style={{ marginTop: 14, height: 30, paddingHorizontal: 14, borderRadius: 999, borderWidth: 1, borderColor: pal.c2A2A2F, justifyContent: 'center' }}>
+          <Text style={{ fontFamily: fonts.mono, fontSize: 12, color: pal.cB4B4BA }}>v{APP_VERSION}</Text>
         </View>
 
-        <Text style={[styles.footerText, { color: colors.faint }]}>Made with focus · © 2026</Text>
+        <GroupCard style={{ alignSelf: 'stretch', marginTop: 36 }}>
+          <Row label="Privacy policy" sub="How fasla handles your data" minHeight={66} onPress={handlePrivacy} />
+          <Row label="Licenses" minHeight={58} onPress={handleLicenses} last />
+        </GroupCard>
+        <Text style={{ marginTop: 24, fontFamily: fonts.body, fontSize: 13, color: pal.c6E6E75 }}>Made with focus · © 2026</Text>
       </ScrollView>
-    </Screen>
+    </Frame>
   );
 }
-
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingHorizontal: 22, paddingBottom: 16 },
-  circleBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '800' },
-  scrollPad: { paddingHorizontal: 22, paddingBottom: 40 },
-
-  hero: { alignItems: 'center', marginBottom: 40, marginTop: 20 },
-  appIconBox: { width: 84, height: 84, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  glyph: { width: 42, height: 42, borderRadius: 12, borderWidth: 4, borderColor: '#fff' },
-  appName: { fontSize: 24, fontWeight: '800', marginBottom: 4 },
-  appTagline: { fontSize: 14, fontWeight: '500', marginBottom: 16 },
-  versionPill: { paddingVertical: 4, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1 },
-  versionText: { fontSize: 12, fontWeight: '700' },
-
-  card: { borderRadius: 20, borderWidth: 1, overflow: 'hidden', marginBottom: 32 },
-  row: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 14 },
-  iconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  rowLabel: { fontSize: 15, fontWeight: '700' },
-  rowSub: { fontSize: 12, fontWeight: '500', marginTop: 2 },
-  divider: { height: 1, marginLeft: 64 },
-
-  footerText: { fontSize: 12, fontWeight: '600', textAlign: 'center' }
-});

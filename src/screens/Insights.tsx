@@ -1,169 +1,103 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Screen } from '../components/Screen';
-import { SegmentedControl } from '../components/SegmentedControl';
-import { Theme } from '../theme';
-import { useTheme } from '../theme/ThemeContext';
 import { db } from '../db';
-import {
-  BarDatum,
-  getAvgSessionSec,
-  getCompletionByMode,
-  getFocusBars,
-  getPeriodComparison,
-  getPeriodStats,
-  periodRange,
-  Period,
-  PeriodStats,
-} from '../services/stats/statsService';
+import type { Period } from '../services/stats/statsService';
+import { buildInsights, comparisonWindow, formatDuration, InsightsView, periodWindow } from '../features/insightsModel';
+import { RED, usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Frame, Segmented, TAB_CLEARANCE, Title } from '../ui/kit';
 
-function formatDuration(seconds: number) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${String(minutes).padStart(2, '0')}m` : `${minutes}m`;
-}
+const PERIODS: Array<{ value: Period; label: string }> = [
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+];
+const BAR_MAX = 92;
+const LEDGER_SLOTS = 17;
 
-function dateRange(period: Period) {
-  const { start, end } = periodRange(period);
-  const a = new Date(start * 1000);
-  const b = new Date(end * 1000);
-  const month = b.toLocaleDateString(undefined, { month: 'long' });
-  if (period === 'day') return b.toLocaleDateString(undefined, { day: 'numeric', month: 'long' });
-  if (period === 'month') return month;
-  return `${a.getDate()} – ${b.getDate()} ${month}`;
-}
-
+/** Insights (Fasla Redesign v2). */
 export function Insights() {
-  const theme = useTheme();
-  const styles = useMemo(() => makeStyles(theme), [theme]);
+  const pal = usePalette();
   const [period, setPeriod] = useState<Period>('week');
-  const [stats, setStats] = useState<PeriodStats | null>(null);
-  const [bars, setBars] = useState<BarDatum[]>([]);
-  const [comparison, setComparison] = useState(0);
-  const [modes, setModes] = useState<Array<{ mode: string; label: string; completed: number; total: number; pct: number }>>([]);
-  const [average, setAverage] = useState(0);
-  const [endedEarly, setEndedEarly] = useState(0);
-  const [outcomes, setOutcomes] = useState({ done: 0, recorded: 0, planned: 0, nextStep: '' });
+  const [view, setView] = useState<InsightsView | null>(null);
 
   useFocusEffect(useCallback(() => {
     let mounted = true;
-    const range = periodRange(period);
-    Promise.all([
-      getPeriodStats(period),
-      getFocusBars(period),
-      getPeriodComparison(period),
-      getCompletionByMode(period),
-      getAvgSessionSec(period),
-      db.sessions.sessionsBetween(range.start, range.end),
-    ]).then(([nextStats, nextBars, nextComparison, nextModes, nextAverage, sessions]) => {
-      if (!mounted) return;
-      setStats(nextStats);
-      setBars(nextBars);
-      setComparison(nextComparison.deltaPct);
-      setModes(nextModes);
-      setAverage(nextAverage);
-      setEndedEarly(sessions.filter(session => session.endedVia === 'override').length);
-      const planned = sessions.filter(session => !!session.intention?.trim());
-      const recorded = planned.filter(session => !!session.outcome);
-      setOutcomes({
-        done: recorded.filter(session => session.outcome === 'done').length,
-        recorded: recorded.length,
-        planned: planned.length,
-        nextStep: sessions.find(session => session.nextStep?.trim())?.nextStep ?? '',
-      });
-    }).catch(() => {});
+    const now = Math.floor(Date.now() / 1000);
+    const w = periodWindow(period, 0, now);
+    const cmp = comparisonWindow(period, 0, now);
+    Promise.all([db.sessions.sessionsOverlapping(w.start, w.end), db.sessions.sessionsOverlapping(cmp.start, cmp.end)])
+      .then(([current, previous]) => { if (mounted) setView(buildInsights(period, 0, now, current, previous)); })
+      .catch(() => {});
     return () => { mounted = false; };
   }, [period]));
 
-  const maximum = Math.max(1, ...bars.map(bar => bar.value));
-  const currentIndex = bars.length - 1;
-  const longest = bars.reduce<BarDatum | null>((best, bar) => !best || bar.value > best.value ? bar : best, null);
+  const max = Math.max(1, ...(view?.bars.map(b => b.value) ?? [0]));
+  const { finished, recorded } = view?.outcomes ?? { finished: 0, recorded: 0 };
+  const slots = Math.min(recorded, LEDGER_SLOTS);
+  const filled = recorded ? Math.round((finished / recorded) * slots) : 0;
+  const ritualColors = [RED, pal.cFF8A8D, pal.c7A3236];
+  const card = { borderRadius: 24, backgroundColor: pal.c17171A };
+  const positive = !!view?.deltaText.startsWith('+');
 
   return (
-    <Screen style={styles.screen}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>Insights</Text>
-        <SegmentedControl options={[{ label: 'Day', value: 'day' }, { label: 'Week', value: 'week' }, { label: 'Month', value: 'month' }]} value={period} onChange={value => setPeriod(value as Period)} />
+    <Frame>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: TAB_CLEARANCE }}>
+        <Title spacing={-0.03}>Insights</Title>
+        <Segmented options={PERIODS} value={period} onChange={setPeriod} active="red" />
 
-        <View style={styles.overview}>
-          <Text style={styles.range}>{dateRange(period)}</Text>
-          <Text style={styles.total}>{formatDuration(stats?.focusSec ?? 0)}</Text>
-          <Text style={styles.comparison}>across {stats?.sessions ?? 0} sessions · {comparison === 0 ? 'same as last period' : `${Math.abs(comparison)}% ${comparison > 0 ? 'more' : 'less'} than last ${period}`}</Text>
-        </View>
-
-        <View style={styles.chart}>
-          {bars.map((bar, index) => (
-            <View key={`${bar.label}-${index}`} style={styles.chartColumn}>
-              <View style={[styles.chartBar, { height: 24 + Math.round((bar.value / maximum) * 72) }, index === currentIndex && styles.chartBarCurrent]} />
-              <Text style={styles.chartLabel}>{bar.label.slice(0, 1)}</Text>
-            </View>
-          ))}
-        </View>
-        <Text style={styles.chartNote}>{longest && longest.value > 0 ? `${longest.label} was the longest at ${formatDuration(longest.value)}.` : 'No completed focus sessions in this period yet.'}</Text>
-
-        <View style={styles.ledger}>
-          <View style={styles.ledgerTop}>
-            <Text style={styles.ledgerTitle}>Outcome ledger</Text>
-            <Text style={styles.ledgerValue}>{outcomes.done}/{outcomes.planned}</Text>
+        <View style={[card, { padding: 20 }]}>
+          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0 }}>{view?.window.label ?? ''}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
+            <Text style={{ fontFamily: fonts.display, fontSize: 44, letterSpacing: -1.32, lineHeight: 46, color: pal.cF5F5F2 }}>{formatDuration(view?.focusSec ?? 0)}</Text>
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: positive ? pal.c3DDC84 : pal.c9A9AA0 }}>{view?.deltaText ?? ''}</Text>
           </View>
-          <Text style={styles.ledgerBody}>{outcomes.planned === 0 ? 'Set a concrete intention before focus to start your ledger.' : `${outcomes.done} planned ${outcomes.done === 1 ? 'task' : 'tasks'} done · ${outcomes.recorded} outcomes recorded`}</Text>
-          {outcomes.nextStep ? <Text style={styles.nextStep}>NEXT · {outcomes.nextStep}</Text> : null}
+          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c6E6E75, marginTop: 4 }}>across {view?.sessions ?? 0} {view?.sessions === 1 ? 'session' : 'sessions'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 120, marginTop: 20 }} accessibilityLabel="Focus over time">
+            {(view?.bars ?? []).map((b, i) => {
+              const h = b.value > 0 ? Math.max(8, Math.round((b.value / max) * BAR_MAX)) : 4;
+              return (
+                <View key={`${b.label}${i}`} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: '100%' }}>
+                  <View style={{ width: '100%', height: h, borderRadius: 8, backgroundColor: b.highlight ? RED : b.value ? pal.c3A2224 : pal.c232327 }} />
+                  <Text style={{ fontFamily: fonts.mono, fontSize: 11, color: b.highlight ? pal.cF5F5F2 : pal.c6E6E75 }} numberOfLines={1}>{b.label}</Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
-        <Text style={styles.sectionTitle}>By mode</Text>
-        <View>
-          {modes.length === 0 ? (
-            <Text style={styles.empty}>Mode totals appear after your first completed session.</Text>
-          ) : modes.slice(0, 4).map(item => (
-            <View key={item.mode} style={styles.modeRow}>
-              <View style={styles.modeTop}>
-                <Text style={styles.modeName}>{item.label}</Text>
-                <Text style={styles.modeValue}>{item.completed}/{item.total} complete</Text>
-              </View>
-              <View style={styles.modeTrack}><View style={[styles.modeFill, { width: `${Math.max(4, item.pct)}%` }]} /></View>
+        <View style={[card, { paddingVertical: 18, paddingHorizontal: 20, gap: 12 }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>Outcome ledger</Text>
+            <Text style={{ fontFamily: fonts.mono, fontSize: 20, color: pal.cF5F5F2 }}>{finished}/{recorded}</Text>
+          </View>
+          {slots > 0 ? (
+            <View style={{ flexDirection: 'row', gap: 4 }} accessibilityElementsHidden>
+              {Array.from({ length: slots }, (_, i) => <View key={i} style={{ flex: 1, height: 8, borderRadius: 4, backgroundColor: i < filled ? RED : pal.c2A2A2F }} />)}
             </View>
-          ))}
+          ) : null}
+          <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0 }}>
+            {recorded ? 'Intentions you finished before tapping out.' : 'Finish a study or work session to start your ledger.'}
+          </Text>
         </View>
 
-        <View style={styles.footerMetrics}>
-          <View><Text style={styles.metric}>{formatDuration(average)}</Text><Text style={styles.metricLabel}>Average</Text></View>
-          <View><Text style={styles.metric}>{endedEarly}</Text><Text style={styles.metricLabel}>Ended early</Text></View>
+        <View style={[card, { paddingVertical: 6, paddingHorizontal: 20 }]}>
+          {view && view.rituals.length ? view.rituals.map((r, i) => (
+            <View key={r.id} style={{ gap: 8, paddingVertical: 14, borderBottomWidth: i === view.rituals.length - 1 ? 0 : 1, borderBottomColor: pal.c232327 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: fonts.body, fontSize: 15, color: pal.cF5F5F2 }}>{r.label}</Text>
+                <Text style={{ fontFamily: fonts.mono, fontSize: 13, color: pal.cB4B4BA }}>{formatDuration(r.focusSec)}</Text>
+              </View>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: pal.c232327, overflow: 'hidden' }}>
+                <View style={{ height: 4, borderRadius: 2, width: `${Math.round(r.share * 100)}%`, backgroundColor: ritualColors[Math.min(i, 2)] }} />
+              </View>
+            </View>
+          )) : (
+            <Text style={{ fontFamily: fonts.body, fontSize: 13, color: pal.c9A9AA0, paddingVertical: 16 }}>Time per ritual appears after your first session.</Text>
+          )}
         </View>
       </ScrollView>
-    </Screen>
+    </Frame>
   );
 }
-
-const makeStyles = (theme: Theme) => StyleSheet.create({
-  screen: { paddingHorizontal: 0 },
-  scroll: { paddingHorizontal: 22, paddingBottom: 36 },
-  title: { ...theme.typography.screenTitle, color: theme.colors.text, marginBottom: 24 },
-  overview: { marginTop: 28 },
-  range: { color: theme.colors.text, fontSize: 14 },
-  total: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 18, marginTop: 2 },
-  comparison: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  chart: { height: 142, flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 22 },
-  chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end', gap: 9 },
-  chartBar: { width: '100%', minHeight: 24, borderRadius: 5, backgroundColor: theme.colors.card2 },
-  chartBarCurrent: { backgroundColor: theme.colors.accent },
-  chartLabel: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 11 },
-  chartNote: { color: theme.colors.muted, fontSize: 11, lineHeight: 17, marginTop: 10 },
-  ledger: { backgroundColor: theme.colors.card, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, padding: 17, marginTop: 24 },
-  ledgerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  ledgerTitle: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
-  ledgerValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Medium', fontSize: 18 },
-  ledgerBody: { color: theme.colors.muted, fontSize: 12, lineHeight: 18, marginTop: 7 },
-  nextStep: { color: theme.colors.accent, fontFamily: 'IBMPlexMono-Medium', fontSize: 10, lineHeight: 15, marginTop: 12 },
-  sectionTitle: { color: theme.colors.text, fontSize: 14, marginTop: 28, marginBottom: 10 },
-  empty: { color: theme.colors.muted, fontSize: 13, paddingVertical: 20 },
-  modeRow: { borderBottomWidth: 1, borderBottomColor: theme.colors.border, paddingVertical: 12 },
-  modeTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  modeName: { color: theme.colors.text, fontSize: 13, fontWeight: '600' },
-  modeValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 12 },
-  modeTrack: { height: 3, backgroundColor: theme.colors.track, overflow: 'hidden' },
-  modeFill: { height: 3, backgroundColor: theme.colors.text },
-  footerMetrics: { flexDirection: 'row', gap: 36, marginTop: 20 },
-  metric: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Regular', fontSize: 15 },
-  metricLabel: { color: theme.colors.text, fontSize: 12, marginTop: 2 },
-});

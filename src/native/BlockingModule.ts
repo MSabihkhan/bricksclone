@@ -41,7 +41,10 @@ const moduleImpl = raw
         strict: boolean;
         startedAt: number;
         plannedEndTime?: number | null;
-      }): Promise<void> => raw.startBlocking(params.sessionId, params.tagId ?? null, params.blockedPackages, params.strict, params.startedAt, params.plannedEndTime ?? null),
+        intention?: string | null;
+        ritual?: string | null;
+        keyName?: string | null;
+      }): Promise<void> => raw.startBlocking(params.sessionId, params.tagId ?? null, params.blockedPackages, params.strict, params.startedAt, params.plannedEndTime ?? null, params.intention ?? null, params.ritual ?? null, params.keyName ?? null),
       stopBlocking: (): Promise<void> => raw.stopBlocking(),
       isBlockingActive: (): Promise<boolean> => raw.isBlockingActive(),
       getActiveBlocking: (): Promise<BlockingState | null> => raw.getActiveBlocking(),
@@ -60,8 +63,15 @@ const moduleImpl = raw
       requestOverlayPermission: (): Promise<void> => raw.requestOverlayPermission(),
       openOemSettings: (oem: string, screen: string): Promise<void> => raw.openOemSettings(oem, screen),
       getInstalledApps: (): Promise<InstalledApp[]> => raw.getInstalledApps(),
-      schedulePrayerReminder: (hour: number, minute: number): Promise<void> => raw.schedulePrayerReminder(hour, minute),
-      cancelPrayerReminder: (): Promise<void> => raw.cancelPrayerReminder(),
+      hasNotificationAccess: (): Promise<boolean> => raw.hasNotificationAccess(),
+      requestNotificationAccess: (): Promise<void> => raw.requestNotificationAccess(),
+      openAppInfo: (): Promise<void> => raw.openAppInfo(),
+      getHeldNotificationCount: (): Promise<number> => raw.getHeldNotificationCount(),
+      setPrayerReminders: (reminders: Array<{ label: string; hour: number; minute: number; enabled: boolean }>): Promise<void> =>
+        raw.setPrayerReminders(JSON.stringify(reminders.map(({ label, hour, minute, enabled }) => ({ label, hour, minute, enabled })))),
+      setPersonaEnabled: (enabled: boolean): Promise<void> => raw.setPersonaEnabled(enabled),
+      setSilenceEnabled: (enabled: boolean): Promise<void> => raw.setSilenceEnabled(enabled),
+      getSilenceEnabled: (): Promise<boolean> => raw.getSilenceEnabled(),
     }
   : {
       startBlocking: stub,
@@ -83,8 +93,14 @@ const moduleImpl = raw
       requestOverlayPermission: stub,
       openOemSettings: stub,
       getInstalledApps: stub,
-      schedulePrayerReminder: stub,
-      cancelPrayerReminder: stub,
+      hasNotificationAccess: stub,
+      requestNotificationAccess: stub,
+      openAppInfo: stub,
+      getHeldNotificationCount: stub,
+      setPrayerReminders: stub,
+      setPersonaEnabled: stub,
+      setSilenceEnabled: stub,
+      getSilenceEnabled: () => Promise.resolve(true),
     };
 
 export const BlockingModule = moduleImpl;

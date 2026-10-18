@@ -1,5 +1,5 @@
-import { Alert } from 'react-native';
 import { describeError } from './describeError';
+import { faslaAlert } from '../components/FaslaDialog';
 
 declare const global: {
   ErrorUtils?: {
@@ -23,9 +23,9 @@ export function installGlobalErrorHandler(): void {
   errorUtils.setGlobalHandler((error: unknown, isFatal?: boolean) => {
     try {
       const stack = error instanceof Error && error.stack ? `\n\n${error.stack}` : '';
-      Alert.alert(isFatal ? 'App crashed' : 'Something went wrong', `${describeError(error)}${stack}`.slice(0, 1200));
+      faslaAlert(isFatal ? 'App crashed' : 'Something went wrong', `${describeError(error)}${stack}`.slice(0, 1200));
     } catch {
-      // Alert itself must not be able to crash the crash handler.
+      // The dialog itself must not be able to crash the crash handler.
     }
     previousHandler?.(error, isFatal);
   });

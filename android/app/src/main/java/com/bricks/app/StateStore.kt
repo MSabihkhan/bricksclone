@@ -12,7 +12,13 @@ data class BlockingState(
     val strict: Boolean,
     val startedAt: Long,
     val plannedEndTime: Long?,
-    val blockedCount: Int = 0
+    val blockedCount: Int = 0,
+    val intention: String? = null,
+    val ritual: String? = null,
+    /** Name of the key that started the session ("Desk"). */
+    val keyName: String? = null,
+    /** Blocked-app opens this session, per package. Shown on the lock screen ("3rd try"). */
+    val attemptCounts: Map<String, Int> = emptyMap()
 )
 
 data class SessionCompletion(
@@ -35,6 +41,9 @@ object StateStore {
     private const val KEY_ATTEMPTS = "attempts"
     private const val KEY_PENDING_COMPLETION = "pending_completion"
     private const val MAX_PENDING_ATTEMPTS = 500
+    private const val KEY_HELD_NOTIFICATIONS = "held_notifications"
+    private const val KEY_PERSONA = "persona_enabled"
+    private const val KEY_SILENCE = "silence_enabled"
 
     private lateinit var prefs: SharedPreferences
 
@@ -42,6 +51,42 @@ object StateStore {
         if (!::prefs.isInitialized) {
             prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         }
+    }
+
+    /** Mirrors Settings → Card character, so the native lock screen can draw (or skip) the card's face. */
+    fun setPersonaEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_PERSONA, enabled).apply()
+    }
+
+    fun isPersonaEnabled(): Boolean = prefs.getBoolean(KEY_PERSONA, true)
+
+    /** The "Silence their notifications" switch. Only matters once Notification access is granted. */
+    fun setSilenceEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SILENCE, enabled).apply()
+    }
+
+    fun isSilenceEnabled(): Boolean = prefs.getBoolean(KEY_SILENCE, true)
+
+    /** Counts per package of notifications removed during the current session. Counts only, never content. */
+    @Synchronized
+    fun recordHeldNotification(pkg: String) {
+        if (load() == null) return
+        val held = JSONObject(prefs.getString(KEY_HELD_NOTIFICATIONS, "{}") ?: "{}")
+        held.put(pkg, held.optInt(pkg, 0) + 1)
+        prefs.edit().putString(KEY_HELD_NOTIFICATIONS, held.toString()).apply()
+    }
+
+    fun loadHeldNotifications(): Map<String, Int> {
+        return try {
+            val held = JSONObject(prefs.getString(KEY_HELD_NOTIFICATIONS, "{}") ?: "{}")
+            held.keys().asSequence().associateWith { held.optInt(it, 0) }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun clearHeldNotifications() {
+        prefs.edit().remove(KEY_HELD_NOTIFICATIONS).apply()
     }
 
     fun save(active: BlockingState?) {
@@ -58,6 +103,10 @@ object StateStore {
                 put("startedAt", active.startedAt)
                 if (active.plannedEndTime != null) put("plannedEndTime", active.plannedEndTime)
                 put("blockedCount", active.blockedCount)
+                if (!active.intention.isNullOrBlank()) put("intention", active.intention)
+                if (!active.ritual.isNullOrBlank()) put("ritual", active.ritual)
+                if (!active.keyName.isNullOrBlank()) put("keyName", active.keyName)
+                put("attemptCounts", JSONObject().apply { active.attemptCounts.forEach { (k, v) -> put(k, v) } })
             }
             prefs.edit().putString(KEY_ACTIVE_STATE, json.toString()).apply()
         }
@@ -79,7 +128,13 @@ object StateStore {
                 strict = json.getBoolean("strict"),
                 startedAt = json.getLong("startedAt"),
                 plannedEndTime = if (json.has("plannedEndTime") && !json.isNull("plannedEndTime")) json.getLong("plannedEndTime") else null,
-                blockedCount = json.optInt("blockedCount", 0)
+                blockedCount = json.optInt("blockedCount", 0),
+                intention = json.optString("intention", "").ifBlank { null },
+                ritual = json.optString("ritual", "").ifBlank { null },
+                keyName = json.optString("keyName", "").ifBlank { null },
+                attemptCounts = json.optJSONObject("attemptCounts")?.let { counts ->
+                    counts.keys().asSequence().associateWith { counts.optInt(it, 0) }
+                } ?: emptyMap()
             )
         } catch (e: Exception) {
             null
@@ -104,7 +159,9 @@ object StateStore {
             boundedAttempts.put(attemptsArray.getJSONObject(i))
         }
         prefs.edit().putString(KEY_ATTEMPTS, boundedAttempts.toString()).apply()
-        save(active.copy(blockedCount = active.blockedCount + 1))
+        val counts = active.attemptCounts.toMutableMap()
+        counts[pkg] = (counts[pkg] ?: 0) + 1
+        save(active.copy(blockedCount = active.blockedCount + 1, attemptCounts = counts))
     }
 
     fun savePendingCompletion(completion: SessionCompletion) {

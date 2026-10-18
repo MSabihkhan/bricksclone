@@ -21,7 +21,7 @@ class BlockingAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
-        BlockGuard.handleForegroundPackage(this, pkg)
+        BlockGuard.handleForegroundPackage(this, pkg) { performGlobalAction(GLOBAL_ACTION_BACK) }
     }
 
     override fun onInterrupt() {}

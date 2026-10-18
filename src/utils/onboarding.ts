@@ -36,9 +36,10 @@ export function isTagIdInputValid(raw: string): boolean {
 }
 
 export const BRICK_MODES = [
-  { key: 'deep', label: 'Deep Work', desc: 'High-commitment focus with your global blocked apps' },
-  { key: 'wind', label: 'Wind Down', desc: 'A gentler focus label for evening routines' },
-  { key: 'custom', label: 'Custom', desc: 'A reusable focus mode with your chosen duration' }
+  { key: 'deep', label: 'Deep Work', desc: 'Long, single-task sessions' },
+  { key: 'study', label: 'Study', desc: 'Coursework and revision' },
+  { key: 'wind', label: 'Wind Down', desc: 'A gentler label for evening routines' },
+  { key: 'custom', label: 'Custom', desc: 'Your own mode and duration' }
 ] as const;
 
 export const MODE_PRESETS: Record<string, Record<string, boolean>> = {
@@ -53,8 +54,9 @@ export const DURATIONS = [
   { key: 'inf', label: 'Until I tap out' }
 ] as const;
 
-export function modeLabel(mode: string): 'Deep Work' | 'Wind Down' | 'Custom' {
+export function modeLabel(mode: string): 'Deep Work' | 'Study' | 'Wind Down' | 'Custom' {
   if (mode === 'deep') return 'Deep Work';
+  if (mode === 'study') return 'Study';
   if (mode === 'wind') return 'Wind Down';
   return 'Custom';
 }

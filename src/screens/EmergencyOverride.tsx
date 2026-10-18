@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
-import { useTheme } from '../theme/ThemeContext';
+import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Icon } from '../components/Icon';
 import { useFocusStore } from '../state/useFocusStore';
 import { WAIT_SECONDS, HOLD_MS, OverrideStep, getNextStep } from './emergencyOverrideModel';
+import { RED, usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Eyebrow, Frame, Glyph, PillButton, RadialBg, RoundButton } from '../ui/kit';
 
+/** End early: wait, then hold to confirm (Fasla Redesign v2 language). */
 export function EmergencyOverride() {
-  const { colors } = useTheme();
+  const pal = usePalette();
   const navigation = useNavigation();
   const { endSession } = useFocusStore();
 
@@ -15,7 +17,6 @@ export function EmergencyOverride() {
   const [seconds, setSeconds] = useState(WAIT_SECONDS);
   const holdAnim = useRef(new Animated.Value(0)).current;
 
-  // Step 1 timer
   useEffect(() => {
     if (step !== 'wait') return;
     const timer = setInterval(() => {
@@ -33,26 +34,15 @@ export function EmergencyOverride() {
 
   const onHoldIn = () => {
     if (step !== 'hold') return;
-    Animated.timing(holdAnim, {
-      toValue: 1,
-      duration: HOLD_MS,
-      easing: Easing.linear,
-      useNativeDriver: false
-    }).start(({ finished }) => {
-      if (finished) {
-        setStep(getNextStep('hold'));
-      }
+    Animated.timing(holdAnim, { toValue: 1, duration: HOLD_MS, easing: Easing.linear, useNativeDriver: false }).start(({ finished }) => {
+      if (finished) setStep(getNextStep('hold'));
     });
   };
 
   const onHoldOut = () => {
     if (step !== 'hold') return;
     holdAnim.stopAnimation();
-    Animated.timing(holdAnim, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: false
-    }).start();
+    Animated.timing(holdAnim, { toValue: 0, duration: 300, useNativeDriver: false }).start();
   };
 
   const onReturnHome = async () => {
@@ -60,89 +50,61 @@ export function EmergencyOverride() {
     navigation.goBack();
   };
 
-  const holdWidth = holdAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%']
-  });
+  const holdWidth = holdAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const title = { marginTop: 12, fontFamily: fonts.display, fontSize: 36, letterSpacing: -1.44, lineHeight: 38, color: pal.cF5F5F2, textAlign: 'center' as const };
+  const body = { marginTop: 12, fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: pal.c9A9AA0, textAlign: 'center' as const, maxWidth: 300 };
 
   return (
-    <View style={styles.scrim}>
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.handle, { backgroundColor: colors.faint }]} />
-        <TouchableOpacity style={[styles.closeBtn, { backgroundColor: colors.card2 }]} onPress={() => navigation.goBack()}>
-          <Icon name="x" size={20} color={colors.muted} />
-        </TouchableOpacity>
+    <Frame gutter={24} bg={<RadialBg spec={{ cx: 0.5, cy: 0.3, rx: 0.8, ry: 0.45, stops: [[pal.c241012, 0], [pal.c0B0B0D, 0.7], [pal.c0B0B0D, 1]] }} />}>
+      <View style={{ alignItems: 'flex-end' }}>
+        {step !== 'done' ? <RoundButton icon="close" label="Keep focusing" onPress={() => navigation.goBack()} /> : <View style={{ height: 44 }} />}
+      </View>
 
-        {step === 'wait' && (
-          <View style={styles.content}>
-            <Text style={[styles.kicker, { color: colors.faint }]}>FOCUS IS STILL ACTIVE</Text>
-            <Text style={[styles.title, { color: colors.text }]}>End session early?</Text>
-            <Text style={[styles.body, { color: colors.muted }]}>
-              Blocked apps will be available again. Your session will be recorded as ended early.
-            </Text>
-            <TouchableOpacity style={[styles.keepBtn, { backgroundColor: colors.accent }]} onPress={() => navigation.goBack()}>
-              <Text style={styles.keepText}>Keep focusing</Text>
-            </TouchableOpacity>
-            <Text style={[styles.countdown, { color: colors.muted }]}>
-              END SESSION AVAILABLE IN 0{seconds}
-            </Text>
-          </View>
-        )}
-
-        {step === 'hold' && (
-          <View style={styles.content}>
-            <Text style={[styles.kicker, { color: colors.faint }]}>CONFIRM ENDING</Text>
-            <Text style={[styles.title, { color: colors.text }]}>Hold to end focus</Text>
-            <Text style={[styles.body, { color: colors.muted }]}>
-              Keep holding until the bar is full. This prevents an accidental tap.
-            </Text>
-            <TouchableOpacity 
-              activeOpacity={1}
-              onPressIn={onHoldIn}
-              onPressOut={onHoldOut}
-              style={[styles.holdBtn, { backgroundColor: colors.card2 }]}
-            >
-              <Animated.View style={[styles.holdFill, { backgroundColor: colors.accent, width: holdWidth }]} />
-              <Text style={styles.holdText}>Hold to end session</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {step === 'done' && (
-          <View style={styles.content}>
-            <View style={[styles.checkCircle, { backgroundColor: colors.card2 }]}>
-              <Icon name="check" size={32} color="#fff" />
-            </View>
-            <Text style={[styles.title, { color: colors.text }]}>Session ended</Text>
-            <Text style={[styles.body, { color: colors.muted }]}>
-              Your focus time has been saved.
-            </Text>
-            <TouchableOpacity style={[styles.homeBtn, { backgroundColor: colors.accent }]} onPress={onReturnHome}>
-              <Text style={styles.homeBtnText}>Return home</Text>
-            </TouchableOpacity>
-          </View>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: step === 'done' ? RED : pal.c2A1012, borderWidth: step === 'done' ? 0 : 1, borderColor: pal.c5A1C1F, alignItems: 'center', justifyContent: 'center', marginBottom: 22 }}>
+          <Glyph name={step === 'done' ? 'check' : step === 'hold' ? 'lock' : 'timer'} size={30} color={step === 'done' ? '#FFFFFF' : pal.cFF5A5F} width={step === 'done' ? 3 : 2} />
+        </View>
+        {step === 'wait' ? (
+          <>
+            <Eyebrow color={pal.cFF8A8D} spacing={0.2}>FOCUS IS STILL ACTIVE</Eyebrow>
+            <Text style={title} accessibilityRole="header">End session early?</Text>
+            <Text style={body}>Blocked apps will be available again. Your session will be recorded as ended early.</Text>
+          </>
+        ) : step === 'hold' ? (
+          <>
+            <Eyebrow color={pal.cFF8A8D} spacing={0.2}>CONFIRM ENDING</Eyebrow>
+            <Text style={title} accessibilityRole="header">Hold to end focus</Text>
+            <Text style={body}>Keep holding until the bar is full. This prevents an accidental tap.</Text>
+          </>
+        ) : (
+          <>
+            <Text style={title} accessibilityRole="header">Session ended</Text>
+            <Text style={body}>Your focus time has been saved.</Text>
+          </>
         )}
       </View>
-    </View>
+
+      <View style={{ paddingBottom: 18, gap: 12 }}>
+        {step === 'wait' ? (
+          <>
+            <PillButton label="Keep focusing" onPress={() => navigation.goBack()} />
+            <Text style={{ fontFamily: fonts.mono, fontSize: 12, letterSpacing: 1.2, color: pal.c85858C, textAlign: 'center' }} accessibilityLiveRegion="polite">
+              END SESSION AVAILABLE IN {String(seconds).padStart(2, '0')}
+            </Text>
+          </>
+        ) : step === 'hold' ? (
+          <>
+            <Pressable onPressIn={onHoldIn} onPressOut={onHoldOut} accessibilityRole="button" accessibilityLabel="Hold to end session" accessibilityHint="Press and hold for three seconds"
+              style={{ height: 58, borderRadius: 999, overflow: 'hidden', backgroundColor: pal.c26262B, alignItems: 'center', justifyContent: 'center' }}>
+              <Animated.View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: holdWidth, backgroundColor: RED }} />
+              <Text style={{ fontFamily: fonts.bodySemiBold, fontSize: 16, color: '#FFFFFF' }}>Hold to end session</Text>
+            </Pressable>
+            <PillButton label="Keep focusing" kind="ghost" height={44} onPress={() => navigation.goBack()} textStyle={{ fontSize: 15 }} />
+          </>
+        ) : (
+          <PillButton label="Return home" onPress={() => { onReturnHome().catch(() => {}); }} />
+        )}
+      </View>
+    </Frame>
   );
 }
-
-const styles = StyleSheet.create({
-  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.62)', justifyContent: 'flex-end' },
-  card: { width: '100%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 34, position: 'relative' },
-  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', opacity: 0.5, marginBottom: 20 },
-  closeBtn: { position: 'absolute', top: 16, right: 16, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', zIndex: 10 },
-  content: { alignItems: 'stretch', marginTop: 8 },
-  kicker: { fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.6, marginBottom: 12, textAlign: 'center' },
-  title: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.6, marginBottom: 12, textAlign: 'center' },
-  body: { fontSize: 14, fontWeight: '400', textAlign: 'center', marginBottom: 26, lineHeight: 21, paddingHorizontal: 10 },
-  keepBtn: { height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  keepText: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  countdown: { fontFamily: 'IBMPlexMono-Regular', fontSize: 10, letterSpacing: 0.3, textAlign: 'center', marginTop: 18 },
-  holdBtn: { width: '100%', height: 56, borderRadius: 17, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  holdFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  holdText: { color: '#fff', fontSize: 15, fontWeight: '700', zIndex: 1 },
-  checkCircle: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  homeBtn: { width: '100%', height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  homeBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' }
-});

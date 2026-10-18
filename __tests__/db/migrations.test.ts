@@ -1,3 +1,4 @@
+import { runMigrations } from '../../src/db/migrate';
 import { SqlJsDriver } from './helpers';
 import { MIGRATIONS, LATEST_VERSION } from '../../src/db/migrations';
 import { SettingsRepository } from '../../src/db/repositories/SettingsRepository';
@@ -51,16 +52,10 @@ describe('Migrations', () => {
   });
 
   it('is idempotent on re-open', async () => {
-    for (const migration of MIGRATIONS) {
-      await driver.execute(migration);
-    }
-    await setDbVersion(LATEST_VERSION);
-    
-    // Apply again
-    for (const migration of MIGRATIONS) {
-      await driver.execute(migration);
-    }
-    
+    // Raw migrations are not re-runnable (ALTER TABLE ADD COLUMN fails twice); the
+    // versioned runner is what guarantees each one is applied exactly once.
+    await runMigrations(driver);
+    await runMigrations(driver);
     const version = await getDbVersion();
     expect(version).toBe(LATEST_VERSION);
   });

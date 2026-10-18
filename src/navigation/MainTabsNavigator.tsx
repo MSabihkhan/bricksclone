@@ -1,141 +1,103 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { View, Animated, StyleSheet, Pressable, Text, Dimensions } from 'react-native';
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainTabsParamList } from './types';
 import { HomeStackNavigator } from './HomeStackNavigator';
 import { SettingsStackNavigator } from './SettingsStackNavigator';
-import { Insights } from '../screens';
-import { Icon, IconName } from '../components/Icon';
-import { Theme } from '../theme';
-import { useTheme } from '../theme/ThemeContext';
+import { Insights, ComingSoon } from '../screens';
+import { useWalkthroughTarget } from '../walkthrough/Walkthrough';
+import { useFocusStore } from '../state/useFocusStore';
+import { useFocusUi } from '../state/useFocusUi';
+import { usePalette } from '../theme/palette';
+import { fonts } from '../theme/fonts';
+import { Glyph } from '../ui/kit';
+import type { IconKey } from '../ui/icons';
 
 const Tab = createBottomTabNavigator<MainTabsParamList>();
 
-const getIconName = (routeName: string): IconName => {
-  if (routeName === 'HomeTab') return 'grid';
-  if (routeName === 'Insights') return 'barChart';
-  if (routeName === 'SettingsTab') return 'settings';
-  return 'grid';
+const TABS: Record<keyof MainTabsParamList, { label: string; icon: IconKey }> = {
+  HomeTab: { label: 'Home', icon: 'grid' },
+  Insights: { label: 'Insights', icon: 'insights' },
+  ComingSoonTab: { label: 'Soon', icon: 'zap' },
+  SettingsTab: { label: 'Settings', icon: 'gear' },
 };
 
-const getLabel = (routeName: string) => {
-  if (routeName === 'HomeTab') return 'Home';
-  if (routeName === 'Insights') return 'Insights';
-  if (routeName === 'SettingsTab') return 'Settings';
-  return '';
-};
+/** Screens inside a tab that take the whole display (the design hides the bar on these). */
+const FULL_SCREEN = new Set(['AddBrick', 'EditKey', 'ManageBlockedApps']);
 
-function CustomTabBar({ state, navigation }: BottomTabBarProps) {
-  const theme = useTheme();
-  const styles = React.useMemo(() => makeStyles(theme), [theme]);
-  const [width, setWidth] = useState(Dimensions.get('window').width);
-  const anim = useRef(new Animated.Value(state.index)).current;
+function focusedChild(route: BottomTabBarProps['state']['routes'][number]): string | undefined {
+  const nested = route.state as { index?: number; routes?: Array<{ name: string }> } | undefined;
+  if (!nested?.routes) return undefined;
+  return nested.routes[nested.index ?? nested.routes.length - 1]?.name;
+}
 
-  useEffect(() => {
-    Animated.spring(anim, {
-      toValue: state.index,
-      useNativeDriver: true,
-      damping: 28,
-      stiffness: 360,
-    }).start();
-  }, [state.index, anim]);
+/** Floating pill tab bar (Fasla Redesign v2). Active tab shows its label on a red-tinted pill. */
+function FloatingTabBar({ state, navigation }: BottomTabBarProps) {
+  const pal = usePalette();
+  const insets = useSafeAreaInsets();
+  const insightsTarget = useWalkthroughTarget('tabs.insights');
+  const focusRunning = useFocusStore(s => s.machine === 'active');
+  const minimized = useFocusUi(s => s.minimized);
 
-  const tabWidth = width / 3;
-  const translateX = anim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [0, tabWidth, tabWidth * 2]
-  });
+  const current = state.routes[state.index];
+  const child = focusedChild(current);
+  const onFocusScreen = current.name === 'HomeTab' && focusRunning && !minimized && (child === undefined || child === 'Home');
+  if (onFocusScreen || (child && FULL_SCREEN.has(child))) return null;
 
   return (
-    <View style={styles.container} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      <Animated.View
-        style={[
-          styles.indicator,
-          { width: tabWidth, transform: [{ translateX }] },
-        ]}
-      >
-        <View style={[styles.indicatorBar, { backgroundColor: theme.colors.accent }]} />
-      </Animated.View>
-
-      {state.routes.map((route, index) => {
-        const isFocused = state.index === index;
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
-
-        return (
-          <Pressable
-            key={route.key}
-            onPress={onPress}
-            style={styles.tab}
-            accessibilityRole="tab"
-            accessibilityLabel={getLabel(route.name)}
-            accessibilityState={{ selected: isFocused }}
-          >
-            <Icon
-              name={getIconName(route.name)}
-              size={24}
-              color={isFocused ? theme.colors.text : theme.colors.faint}
-            />
-            <Text style={[styles.label, { color: isFocused ? theme.colors.text : theme.colors.faint }]}>
-              {getLabel(route.name)}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <View pointerEvents="box-none" style={[styles.wrap, { bottom: 18 + insets.bottom }]}>
+      <View style={[styles.bar, { backgroundColor: pal.tab, borderColor: pal.c26262B }]}>
+        {state.routes.map((route, index) => {
+          const meta = TABS[route.name as keyof MainTabsParamList];
+          const active = state.index === index;
+          const onPress = () => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!active && !event.defaultPrevented) navigation.navigate(route.name);
+          };
+          const live = route.name === 'HomeTab' && focusRunning;
+          return (
+            <Pressable
+              key={route.key}
+              ref={route.name === 'Insights' ? insightsTarget : undefined}
+              onPress={onPress}
+              style={[styles.tab, active && { backgroundColor: pal.c2A1416 }]}
+              accessibilityRole="tab"
+              accessibilityLabel={live ? `${meta.label}, focus is running` : meta.label}
+              accessibilityState={{ selected: active }}
+            >
+              <View>
+                <Glyph name={meta.icon} size={20} width={1.8} color={active ? pal.cFF5A5F : pal.c85858C} />
+                {live ? <View style={[styles.liveDot, { borderColor: active ? pal.c2A1416 : pal.c17171A }]} /> : null}
+              </View>
+              {active ? <Text style={[styles.label, { color: pal.cFF5A5F }]} numberOfLines={1}>{meta.label}</Text> : null}
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
-function renderCustomTabBar(props: BottomTabBarProps) {
-  return <CustomTabBar {...props} />;
+function renderTabBar(props: BottomTabBarProps) {
+  return <FloatingTabBar {...props} />;
 }
 
 export function MainTabsNavigator() {
   return (
-    <Tab.Navigator tabBar={renderCustomTabBar} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={renderTabBar} screenOptions={{ headerShown: false }}>
       <Tab.Screen name="HomeTab" component={HomeStackNavigator} />
       <Tab.Screen name="Insights" component={Insights} />
+      <Tab.Screen name="ComingSoonTab" component={ComingSoon} />
       <Tab.Screen name="SettingsTab" component={SettingsStackNavigator} />
     </Tab.Navigator>
   );
 }
 
-const makeStyles = (theme: Theme) => StyleSheet.create({
-  container: {
-    height: 76,
-    backgroundColor: theme.colors.card,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    paddingBottom: 10,
-    flexDirection: 'row',
-  },
-  tab: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  indicator: {
-    position: 'absolute',
-    top: 0,
-    height: 2,
-    alignItems: 'center',
-  },
-  indicatorBar: {
-    width: 30,
-    height: 2,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 4,
-  },
+const styles = StyleSheet.create({
+  wrap: { position: 'absolute', left: 20, right: 20 },
+  bar: { height: 64, borderRadius: 999, borderWidth: 1, flexDirection: 'row', padding: 6, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 10 },
+  tab: { flex: 1, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  label: { fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  liveDot: { position: 'absolute', top: -3, right: -5, width: 9, height: 9, borderRadius: 5, backgroundColor: '#E5242B', borderWidth: 1.5 },
 });

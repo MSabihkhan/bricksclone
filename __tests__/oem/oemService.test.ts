@@ -69,7 +69,7 @@ describe('oemService', () => {
     expect(Linking.openSettings).toHaveBeenCalled();
   });
 
-  it('inAppName returns Bricks', () => {
-    expect(inAppName()).toBe('Bricks');
+  it('inAppName returns fasla', () => {
+    expect(inAppName()).toBe('fasla');
   });
 });

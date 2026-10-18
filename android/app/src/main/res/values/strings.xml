@@ -1,4 +1,5 @@
 <resources>
-    <string name="app_name">Bricks</string>
+    <string name="app_name">fasla</string>
     <string name="accessibility_service_description">Used to detect and block distracting apps during focus sessions.</string>
+    <string name="notification_blocker_label">fasla: silence blocked apps during focus</string>
 </resources>

@@ -1,0 +1,1010 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-finish="graphite">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bricks persona preview</title>
+<!-- Dev-only preview. Not part of the app bundle (lives outside src/). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque&family=IBM+Plex+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* The app's own font files first; Google Fonts only if this file is moved out of the repo. */
+@font-face { font-family: 'BricolageGrotesque'; src: url('../android/app/src/main/assets/fonts/BricolageGrotesque.ttf'); }
+@font-face { font-family: 'PlexMono'; font-weight: 400; src: url('../android/app/src/main/assets/fonts/IBMPlexMono-Regular.ttf'); }
+@font-face { font-family: 'PlexMono'; font-weight: 500; src: url('../android/app/src/main/assets/fonts/IBMPlexMono-Medium.ttf'); }
+
+/* ===== Tokens copied 1:1 from src/theme/index.ts ===== */
+:root, :root[data-theme="dark"] {
+  --bg:#0D0D0F; --card:#17181A; --card2:#202224; --border:#2B2C2F;
+  --text:#F7F7F5; --muted:#A0A09B; --faint:#686864; --track:#2A2B2D;
+  --accent:#E01F27; --accentSoft:#341719; --scrim:rgba(0,0,0,.72);
+}
+:root[data-theme="light"] {
+  --bg:#FAFAF9; --card:#FFFFFF; --card2:#F2F2F1; --border:#E2E2DF;
+  --text:#111113; --muted:#6D6D68; --faint:#9B9B96; --track:#E9E9E6;
+  --accent:#D81F27; --accentSoft:#F7E7E7; --scrim:rgba(0,0,0,.55);
+}
+:root {
+  --display:'BricolageGrotesque','Bricolage Grotesque',Georgia,serif;
+  --mono:'PlexMono','IBM Plex Mono',ui-monospace,monospace;
+  --sans:Roboto,system-ui,'Segoe UI',sans-serif;   /* RN default on Android = Roboto */
+  --r-sm:10px; --r-md:13px; --r-lg:17px; --r-xl:20px; --r-hero:24px; --r-input:16px;
+  --sx:22px;               /* spacing.screenX */
+  --t-press:120ms; --t-fast:150ms; --t-card:180ms; --t-normal:260ms; --t-sheet:280ms; --t-slow:400ms;
+}
+
+* { box-sizing:border-box; margin:0; }
+html, body { background:var(--bg); color:var(--text); font-family:var(--sans); }
+body { min-height:100vh; }
+button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; }
+
+/* ===== Laptop page chrome ===== */
+.topbar { position:sticky; top:0; z-index:20; display:flex; flex-wrap:wrap; gap:12px; align-items:center;
+  padding:14px 24px; background:var(--bg); border-bottom:1px solid var(--border); }
+.brand { display:flex; align-items:center; gap:9px; margin-right:12px; }
+.logo { width:24px; height:24px; border-radius:8px; background:var(--accent); display:grid; place-items:center; }
+.logo i { width:8px; height:8px; border-radius:2px; background:#fff; }
+.brand b { font-family:var(--display); font-weight:400; font-size:18px; letter-spacing:-.5px; }
+.brand small { font-family:var(--mono); font-size:11px; color:var(--faint); margin-left:6px; }
+.seg { display:flex; background:var(--card2); border-radius:12px; padding:3px; }
+.seg button { padding:8px 14px; border-radius:10px; font-size:13px; font-weight:600; color:var(--muted); }
+.seg button.on { background:var(--card); color:var(--text); box-shadow:0 1px 0 var(--border); }
+.ctl { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
+.ctl select { background:var(--card2); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:6px 8px; font:inherit; }
+.spacer { flex:1; }
+
+.switch { width:46px; height:28px; border-radius:99px; background:var(--track); position:relative; transition:background var(--t-fast); flex:none; }
+.switch::after { content:''; position:absolute; top:4px; left:4px; width:20px; height:20px; border-radius:50%; background:var(--faint); transition:transform var(--t-fast), background var(--t-fast); }
+.switch.on { background:var(--accent); }
+.switch.on::after { transform:translateX(18px); background:#fff; }
+
+main[hidden] { display:none; }
+main { display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:32px 24px 60px; }
+.panel { width:340px; display:flex; flex-direction:column; gap:18px; }
+.panel h2 { font-family:var(--display); font-weight:400; font-size:30px; letter-spacing:-1.8px; line-height:34px; }
+.panel p, .panel li { color:var(--muted); font-size:14px; line-height:20px; }
+.panel ul { padding-left:18px; display:flex; flex-direction:column; gap:6px; }
+.eyebrow { font-family:var(--mono); font-weight:500; font-size:11px; letter-spacing:.25px; color:var(--faint); text-transform:uppercase; }
+.box { background:var(--card); border:1px solid var(--border); border-radius:var(--r-xl); padding:16px; display:flex; flex-direction:column; gap:10px; }
+.evbtn { display:flex; justify-content:space-between; align-items:center; width:100%; min-height:44px; padding:0 14px;
+  border-radius:var(--r-md); background:var(--card2); font-family:var(--mono); font-size:12px; text-align:left; }
+.evbtn.on { outline:1.5px solid var(--accent); }
+.evbtn span:last-child { color:var(--faint); font-family:var(--sans); font-size:12px; }
+.log { font-family:var(--mono); font-size:11px; color:var(--muted); background:var(--card2); border-radius:var(--r-sm); padding:10px; height:96px; overflow:auto; white-space:pre; }
+.row { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:14px; }
+.rule { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); }
+.rule b { font-family:var(--mono); font-weight:500; font-size:12px; color:var(--text); }
+.kf { font-family:var(--mono); font-size:11px; color:var(--muted); border-collapse:collapse; width:100%; }
+.kf td, .kf th { padding:4px 2px; text-align:right; border-bottom:1px solid var(--border); }
+.kf th { color:var(--faint); font-weight:400; }
+.kf td:first-child, .kf th:first-child { text-align:left; }
+.kf tr.cur td { color:var(--text); }
+input[type=range] { width:100%; accent-color:var(--accent); }
+
+/* ===== Phone frame ===== */
+.phone { width:360px; height:760px; border-radius:44px; padding:0; background:var(--bg); position:relative; overflow:hidden; flex:none;
+  box-shadow:0 0 0 9px #050506, 0 0 0 10px #2a2a2c, 0 30px 80px rgba(0,0,0,.45); user-select:none; }
+.status { height:34px; display:flex; justify-content:space-between; align-items:center; padding:6px 26px 0; font-size:13px; font-weight:500; position:relative; z-index:5; }
+.status .dots { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.screen { position:absolute; inset:34px 0 0 0; display:flex; flex-direction:column; }
+
+/* ===== Shared app UI (mirrors components/) ===== */
+.btn { height:56px; border-radius:var(--r-lg); width:100%; display:flex; align-items:center; justify-content:center; gap:10px;
+  font-size:15px; font-weight:700; transition:transform var(--t-press); }
+.btn:active { transform:scale(.985); }
+.btn.primary { background:var(--accent); color:#fff; box-shadow:0 10px 20px rgba(224,31,39,.18); }
+.btn.ghost { border:1px solid var(--border); }
+.btn.soft { background:var(--card2); }
+.link { font-size:14px; font-weight:600; color:var(--muted); text-align:center; padding:8px; }
+.h-display { font-family:var(--display); font-weight:400; font-size:30px; letter-spacing:-1.8px; line-height:34px; }
+.h-onb { font-family:var(--display); font-weight:400; font-size:34px; letter-spacing:-1.8px; line-height:38px; }
+.body { color:var(--muted); font-size:16px; line-height:25px; }
+.mono-l { font-family:var(--mono); font-size:12px; color:var(--muted); }
+.cardui { background:var(--card); border:1px solid var(--border); border-radius:var(--r-xl); padding:16px; }
+
+.tabbar { height:76px; border-top:1px solid var(--border); display:flex; background:var(--bg); margin-top:auto; }
+.tabbar div { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; font-size:11px; font-weight:500; color:var(--faint); }
+.tabbar div i { width:22px; height:22px; border-radius:7px; border:1.8px solid currentColor; }
+.tabbar div.on { color:var(--text); }
+.tabbar div.soon i { border-style:dashed; }
+
+/* ===== The card persona ===== */
+.pc { position:relative; width:var(--w); height:calc(var(--w) * .6359); transform-style:preserve-3d; }
+.pc-motion, .pc-tilt { width:100%; height:100%; transform-style:preserve-3d; }
+.pc-body { position:absolute; inset:0; border-radius:calc(var(--w) * .0373); overflow:hidden; background:url('../src/assets/card/front.png') center/100% 100% !important; --ink:#0B0B0C !important;
+  box-shadow:0 calc(var(--w)*.009) 0 #E9E9E4, 0 calc(var(--w)*.1) calc(var(--w)*.16) rgba(0,0,0,.4); }
+.pc-nfc, .pc-word { display:none; }
+/* Physical finishes: a render of a real object needs a light direction the flat UI theme doesn't have. */
+[data-finish="graphite"] .pc-body { background:linear-gradient(150deg,#323336 0%,#1B1C1E 55%,#141517 100%); --ink:#F7F7F5; --mark:#E01F27; }
+[data-finish="red"]      .pc-body { background:linear-gradient(150deg,#F0444A 0%,#E01F27 50%,#B9151C 100%); --ink:#FFFFFF; --mark:rgba(255,255,255,.8); }
+[data-finish="ivory"]    .pc-body { background:linear-gradient(150deg,#FFFFFF 0%,#EEEEEB 60%,#DCDCD8 100%); --ink:#111113; --mark:#D81F27; }
+.pc-nfc { position:absolute; top:9%; right:7%; width:15%; stroke:var(--mark); fill:none; stroke-width:2; stroke-linecap:round; }
+.pc-word { position:absolute; left:7%; bottom:8%; font-family:var(--display); font-size:calc(var(--w)*.075); color:var(--ink); opacity:.55; letter-spacing:-.3px; }
+.pc-face { position:absolute; left:0; top:0; width:100%; height:100%; }
+.pc-face path { fill:none; stroke:var(--ink); stroke-linecap:round; transition:d var(--t-normal) cubic-bezier(.3,.7,.3,1); }
+.pc-face .e { stroke-width:6.5; }
+.pc-face .m { stroke-width:4; }
+.pc.mini .pc-word, .pc.mini .pc-nfc { display:none; }
+.pc-shadow { position:absolute; left:10%; right:10%; bottom:-22%; height:14%; border-radius:50%; background:rgba(0,0,0,.35); filter:blur(8px); transform:translateZ(-1px); }
+
+.bubble { position:absolute; left:50%; bottom:calc(100% + 16px); transform:translateX(-50%) translateY(6px) scale(.94); opacity:0; pointer-events:none;
+  background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:16px; padding:9px 14px; white-space:nowrap;
+  font-size:15px; font-weight:700; letter-spacing:-.1px; transition:opacity var(--t-card), transform var(--t-card); z-index:3; }
+.bubble::after { content:''; position:absolute; left:50%; bottom:-6px; width:10px; height:10px; background:var(--card);
+  border-right:1px solid var(--border); border-bottom:1px solid var(--border); transform:translateX(-50%) rotate(45deg); }
+.bubble.on { opacity:1; transform:translateX(-50%); }
+
+/* Motions: transform + opacity only, so they stay on the compositor on low-end phones. */
+.m-float  { animation:float 4.2s ease-in-out infinite; }
+.m-lockin { animation:lockin 520ms cubic-bezier(.3,.7,.3,1) both; }
+.m-hop    { animation:hop 760ms cubic-bezier(.3,.7,.3,1) both; }
+.m-tilt   { animation:tilt 420ms cubic-bezier(.3,.7,.3,1) both; }
+@keyframes float  { 50% { transform:translateY(-5px) rotateZ(-1deg); } }
+@keyframes lockin { 0% { transform:scale(1); } 35% { transform:scale(.93) rotateX(10deg); } 70% { transform:scale(1.04); } 100% { transform:scale(1); } }
+@keyframes hop    { 0%,100% { transform:none; } 30% { transform:translateY(-16px) rotateZ(-4deg); } 55% { transform:translateY(0) scale(1.03,.97); } 75% { transform:translateY(-6px) rotateZ(2deg); } }
+@keyframes tilt   { to { transform:rotateZ(-7deg) translateX(-4px) rotateY(-12deg); } }
+
+:root.rm .pc-face path { transition:none; }
+:root.rm .bubble { transition:opacity var(--t-fast); transform:translateX(-50%); }
+:root.rm .m-float, :root.rm .m-lockin, :root.rm .m-hop, :root.rm .m-tilt { animation:none; }
+
+.persona-off .persona { display:none !important; }
+
+/* ===== Character tab: screen mocks ===== */
+.home { padding:12px var(--sx) 0; gap:16px; }
+.chips { display:flex; gap:8px; }
+.chip { height:34px; padding:0 14px; border-radius:99px; background:var(--card2); font-size:13px; font-weight:600; color:var(--muted); display:flex; align-items:center; }
+.chip.on { background:var(--text); color:var(--bg); }
+.hero { position:relative; height:200px; display:grid; place-items:center; perspective:900px; }
+.rail { display:flex; gap:10px; }
+.brick { flex:1; background:var(--card); border:1px solid var(--border); border-radius:var(--r-xl); padding:14px; }
+.brick.sel { border-color:var(--text); }
+.brick b { display:block; font-size:16px; font-weight:700; letter-spacing:-.2px; }
+.brick span { font-family:var(--mono); font-size:10px; color:var(--faint); letter-spacing:.25px; }
+.focus { padding:28px var(--sx) 24px; align-items:center; text-align:center; gap:14px; }
+.timer { font-family:var(--mono); font-size:46px; letter-spacing:-1.8px; line-height:52px; }
+.intent { background:var(--card2); border-radius:var(--r-input); padding:14px 16px; text-align:left; width:100%; }
+.intent div:last-child { font-size:16px; font-weight:600; margin-top:4px; }
+.sheet { position:absolute; left:0; right:0; bottom:0; background:var(--card); border:1px solid var(--border); border-radius:24px 24px 0 0;
+  padding:12px var(--sx) 24px; display:flex; flex-direction:column; gap:16px; align-items:center; text-align:center; z-index:4; }
+.handle { width:36px; height:4px; border-radius:2px; background:var(--faint); }
+.metrics { display:flex; gap:10px; width:100%; }
+.metric { flex:1; background:var(--card2); border-radius:var(--r-lg); padding:12px; text-align:left; }
+.metric b { font-family:var(--mono); font-weight:500; font-size:20px; letter-spacing:-.4px; display:block; }
+.metric span { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.dimmed { position:absolute; inset:0; background:var(--scrim); z-index:3; }
+.blocked { padding:40px var(--sx) 24px; gap:14px; }
+.ring { position:absolute; border:2px solid var(--accent); border-radius:16px; box-shadow:0 0 0 999px var(--scrim); z-index:6; pointer-events:none; }
+.tip { position:absolute; left:16px; right:16px; background:var(--card); border:1px solid var(--border); border-radius:18px; padding:16px; z-index:7; display:flex; gap:12px; }
+.tip-body { flex:1; }
+.tip h4 { font-size:16px; font-weight:700; margin-top:6px; }
+.tip p { color:var(--muted); font-size:13px; line-height:19px; margin-top:4px; }
+.tip-actions { display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+.tip-next { min-height:38px; padding:0 18px; border-radius:19px; background:var(--accent); color:#fff; font-size:13px; font-weight:700; }
+
+/* ===== Onboarding tab ===== */
+.onb { padding-top:10px; }
+.onb-head { display:flex; justify-content:space-between; align-items:center; padding:0 var(--sx); height:36px; }
+.onb-swipe { flex:1; display:flex; flex-direction:column; overflow:hidden; touch-action:pan-y; cursor:grab; }
+.onb-swipe.drag { cursor:grabbing; }
+.stage { position:relative; perspective:900px; flex:none; }
+.stage > .pc { position:absolute; left:50%; top:50%; will-change:transform; }
+.prop-phone { position:absolute; left:50%; top:50%; width:86px; height:172px; border-radius:18px; border:3px solid var(--text); background:var(--card2);
+  will-change:transform,opacity; display:grid; place-items:start center; padding-top:12px; z-index:2; }
+.prop-phone::before { content:''; width:26px; height:4px; border-radius:2px; background:var(--faint); }
+.ripple { position:absolute; left:50%; top:50%; width:10px; height:10px; pointer-events:none; z-index:1; }
+.ripple i { position:absolute; left:50%; top:50%; width:150px; height:150px; margin:-75px; border-radius:50%; border:2px solid var(--accent); opacity:0; }
+.ripple.on i { animation:ripple 1.4s ease-out infinite; }
+.ripple.on i:nth-child(2) { animation-delay:.45s; }
+:root.rm .ripple.on i { animation:none; opacity:.45; }
+:root.rm .ripple.on i:nth-child(2) { transform:scale(.6); }
+@keyframes ripple { 0% { transform:scale(.3); opacity:.7; } 100% { transform:scale(1.3); opacity:0; } }
+.track { display:flex; flex:1; will-change:transform; }
+.pg { width:360px; flex:none; padding:4px var(--sx) 0; display:flex; flex-direction:column; gap:10px; }
+.pg .body { font-size:15px; line-height:22px; }
+.status-line { font-family:var(--mono); font-size:12px; color:var(--muted); display:flex; gap:8px; align-items:center; }
+.status-line .dot { width:7px; height:7px; border-radius:50%; background:var(--faint); }
+.status-line.ok .dot { background:var(--accent); }
+.perm { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.perm div { flex:1; }
+.perm b { font-size:14px; font-weight:700; display:block; }
+.perm span { font-family:var(--mono); font-size:11px; color:var(--faint); }
+.perm button { height:34px; padding:0 14px; border-radius:99px; background:var(--card2); font-size:13px; font-weight:700; }
+.perm button.done { background:transparent; color:var(--muted); }
+.tag { font-family:var(--mono); font-size:10px; color:var(--accent); margin-left:6px; }
+.apps-row { display:flex; justify-content:space-between; align-items:center; background:var(--card2); border-radius:var(--r-md); padding:12px 14px; font-size:14px; }
+.apps-row b { color:var(--muted); font-size:13px; }
+.onb-foot { padding:12px var(--sx) 22px; display:flex; flex-direction:column; gap:14px; }
+.pdots { display:flex; gap:8px; justify-content:center; }
+.pdots i { height:7px; border-radius:4px; background:var(--border); width:7px; }
+/* ===== Home tab (mirrors screens/Home.tsx styles) ===== */
+.hs { position:absolute; inset:34px 0 76px 0; overflow-y:auto; scrollbar-width:none; padding:0 22px 34px; }
+.hs::-webkit-scrollbar { display:none; }
+.phone .tabbar { position:absolute; left:0; right:0; bottom:0; }
+.h-head { display:flex; justify-content:space-between; align-items:center; margin:6px 0 34px; font-size:14px; font-weight:500; }
+.ico { width:21px; height:21px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+.ico.s { width:15px; height:15px; }
+.sec { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:14px; font-weight:500; }
+.sec small { font-size:11px; color:var(--faint); font-weight:400; }
+.sec .info { display:flex; gap:5px; align-items:center; font-size:12px; color:var(--muted); font-weight:400; }
+.rrail { display:flex; gap:8px; overflow-x:auto; margin:0 -22px 10px; padding:0 22px; scrollbar-width:none; }
+.rchip { flex:none; height:42px; border-radius:13px; padding:0 15px; display:flex; align-items:center; gap:7px; background:var(--card2); border:.5px solid var(--border); font-size:13px; font-weight:600; transition:background var(--t-fast), color var(--t-fast); }
+.rchip.on { background:var(--text); border-color:var(--text); color:var(--bg); }
+.tagline { color:var(--muted); font-size:12px; line-height:17px; margin-bottom:24px; }
+/* current rail */
+.mrail { display:flex; gap:12px; overflow-x:auto; margin:0 -22px 20px; padding:0 22px; scrollbar-width:none; }
+.mcard { flex:none; width:176px; height:208px; border-radius:24px; padding:18px; background:var(--card); border:1px solid var(--border); display:flex; flex-direction:column; justify-content:space-between; text-align:left; }
+.mcard.on { background:var(--text); border-color:var(--text); color:var(--bg); }
+.mtop { display:flex; justify-content:space-between; align-items:flex-start; }
+.bmark { width:38px; height:38px; border-radius:11px; background:var(--card2); border:1px solid var(--border); display:grid; place-items:center; color:var(--accent); font-family:var(--display); font-size:14px; }
+.mcard.on .bmark { background:#202224; }
+:root[data-theme=light] .mcard.on .bmark { background:#fff; }
+.mname { font-family:var(--mono); font-size:9px; letter-spacing:.4px; color:var(--muted); }
+.mcard.on .mname { color:inherit; }
+.mmode { font-size:16px; font-weight:600; margin-bottom:3px; }
+.mmeta { font-family:var(--mono); font-size:12px; line-height:17px; }
+/* new stack */
+.stack { position:relative; height:214px; margin-bottom:6px; perspective:1000px; touch-action:pan-y; }
+.stack .pc { position:absolute; left:50%; top:46px; margin-left:-130px; transition:transform var(--t-sheet) cubic-bezier(.3,.7,.3,1), opacity var(--t-sheet); cursor:grab; }
+.stack .pc.dragging { transition:none; cursor:grabbing; }
+.stack .pc .pc-body::after { content:''; position:absolute; inset:0; background:#000; opacity:0; transition:opacity var(--t-sheet); pointer-events:none; }
+.stack .pc.back .pc-body::after { opacity:.28; }
+:root.rm .stack .pc { transition:none; }
+.pc.f-graphite .pc-body { background:linear-gradient(150deg,#323336 0%,#1B1C1E 55%,#141517 100%); --ink:#F7F7F5; --mark:#E01F27; }
+.pc.f-red .pc-body      { background:linear-gradient(150deg,#F0444A 0%,#E01F27 50%,#B9151C 100%); --ink:#FFFFFF; --mark:rgba(255,255,255,.8); }
+.pc.f-ivory .pc-body    { background:linear-gradient(150deg,#FFFFFF 0%,#EEEEEB 60%,#DCDCD8 100%); --ink:#111113; --mark:#D81F27; }
+.scap { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:20px; gap:12px; }
+.scap .mmode { margin:0; }
+.scap > div:last-child { flex:none; white-space:nowrap; }
+.scap .mmeta { color:var(--muted); font-size:11px; }
+.sdots { display:flex; gap:5px; justify-content:flex-end; margin-bottom:6px; }
+.sdots i { width:6px; height:6px; border-radius:3px; background:var(--border); transition:width var(--t-fast), background var(--t-fast); }
+.sdots i.on { width:16px; background:var(--text); }
+.tap-hint { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:14px; color:var(--muted); font-size:13px; }
+.breath { display:flex; align-items:center; justify-content:center; gap:8px; min-height:44px; margin:4px 0 8px; color:var(--muted); font-size:13px; text-decoration:underline; width:100%; }
+.breath.pill { text-decoration:none; width:auto; margin:12px auto 12px; min-height:38px; padding:0 16px; border-radius:99px; background:var(--card2); border:.5px solid var(--border); color:var(--text); font-weight:600; }
+.summary { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:18px; }
+.summary .top { display:flex; justify-content:space-between; }
+.summary .v { font-family:var(--mono); font-size:16px; }
+.summary .l { font-family:var(--mono); font-size:11px; margin-top:3px; }
+.bars { height:38px; display:flex; align-items:flex-end; gap:8px; margin-top:12px; }
+.bars i { flex:1; border-radius:2px; background:var(--card2); }
+.bars i:last-child { background:var(--accent); }
+.st-row { display:flex; align-items:center; gap:8px; margin-top:16px; color:var(--muted); font-size:13px; }
+/* subtle option-button refresh, only in the new variant */
+.v-new .rchip { border-radius:99px; height:40px; }
+.v-new .rchip .dot { width:6px; height:6px; border-radius:3px; background:var(--faint); }
+.v-new .rchip.on .dot { background:var(--accent); }
+.v-new .btn.primary { border-radius:99px; }
+.v-new .pair { display:flex; gap:4px; align-items:center; font-size:12px; color:var(--text); background:var(--card2); border-radius:99px; padding:5px 10px 5px 8px; font-weight:600; }
+.cmp { display:flex; gap:8px; flex-wrap:wrap; }
+.ghost-tap { font-family:var(--mono); font-size:12px; color:var(--text); border:1px dashed var(--faint); border-radius:99px; padding:8px 14px; align-self:flex-start; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="logo"><i></i></span><b>bricks</b><small>persona preview · dev only</small></div>
+  <div class="seg" id="tabs">
+    <button class="on" data-tab="char">Card character</button>
+    <button data-tab="onb">Card onboarding</button>
+    <button data-tab="home">Home · card stack</button>
+  </div>
+  <div class="spacer"></div>
+  <label class="ctl">Theme
+    <div class="seg" id="themeSeg"><button class="on" data-v="dark">Dark</button><button data-v="light">Light</button></div>
+  </label>
+  <label class="ctl">Card finish
+    <select id="finish"><option value="graphite">Graphite</option><option value="red">Signal red</option><option value="ivory">Ivory</option></select>
+  </label>
+  <div class="ctl">Reduce motion <button class="switch" id="rmToggle" aria-label="Reduce motion"></button></div>
+</div>
+
+<!-- ============ TAB 1: CARD CHARACTER ============ -->
+<main id="tab-char">
+  <div class="phone" id="charPhone">
+    <div class="status"><span>9:41</span><span class="dots">5G ▮▮▮</span></div>
+    <div class="screen" id="charScreen"></div>
+  </div>
+
+  <div class="panel">
+    <div>
+      <div class="eyebrow">Card character</div>
+      <h2>App sends a name. The card does the rest.</h2>
+    </div>
+    <div class="box">
+      <div class="eyebrow">Events · app → persona.emit()</div>
+      <div id="evButtons" style="display:flex;flex-direction:column;gap:8px"></div>
+      <button class="evbtn" data-guide="1"><span>guide slot · walkthrough step</span><span>optional</span></button>
+      <div class="log" id="log"></div>
+    </div>
+    <div class="box">
+      <div class="row">Show persona <button class="switch on" id="personaToggle" aria-label="Show persona"></button></div>
+      <p style="font-size:13px">Off = the screens still work; the card and its line just don't render (Settings toggle).</p>
+    </div>
+    <div class="box">
+      <div class="eyebrow">Rule check · five words max</div>
+      <div id="rules"></div>
+    </div>
+  </div>
+</main>
+
+<!-- ============ TAB 2: CARD ONBOARDING ============ -->
+<main id="tab-onb" hidden>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span class="dots">5G ▮▮▮</span></div>
+    <div class="screen onb">
+      <div class="onb-head">
+        <div class="brand" style="margin:0"><span class="logo"><i></i></span><b>bricks</b></div>
+        <button class="link" id="skip" style="padding:0">Skip</button>
+      </div>
+      <div class="onb-swipe" id="swipe">
+        <div class="stage" id="stage">
+          <div class="ripple" id="ripple"><i></i><i></i></div>
+          <div class="prop-phone" id="propPhone"></div>
+          <div class="pc persona" id="onbCard" style="--w:180px"></div>
+        </div>
+        <div class="track" id="track">
+          <section class="pg">
+            <div class="eyebrow">1 of 4 · meet your brick</div>
+            <div class="h-onb">This card is your off switch.</div>
+            <div class="body">Apps you choose stay locked until you tap it. That short walk beats a quick check.</div>
+          </section>
+          <section class="pg">
+            <div class="eyebrow">2 of 4 · pair</div>
+            <div class="h-onb">Tap your phone to it.</div>
+            <div class="body">Hold the top of your phone on the card for a second.</div>
+            <div class="status-line" id="pairStatus"><span class="dot"></span><span>Waiting for your Brick…</span></div>
+            <button class="ghost-tap" id="simPair">▶ simulate NFC tap</button>
+          </section>
+          <section class="pg">
+            <div class="eyebrow">3 of 4 · permissions</div>
+            <div class="h-onb" style="font-size:30px;line-height:34px">Unlock the essentials.</div>
+            <div id="perms"></div>
+          </section>
+          <section class="pg">
+            <div class="eyebrow">4 of 4 · ready</div>
+            <div class="h-onb">Tap to start.</div>
+            <div class="body">Tap the card any time. Focus starts right away.</div>
+            <div class="apps-row"><span>Blocks Instagram, YouTube +4</span><b>Edit</b></div>
+            <button class="ghost-tap" id="simStart">▶ simulate NFC tap</button>
+          </section>
+        </div>
+      </div>
+      <div class="onb-foot">
+        <div class="pdots" id="pdots"><i></i><i></i><i></i><i></i></div>
+        <button class="btn primary" id="cta">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div>
+      <div class="eyebrow">Card onboarding</div>
+      <h2>Swipe scrubs the card.</h2>
+    </div>
+    <p>Drag the phone screen left/right (mouse works), use ← →, or press Continue. The card's pose is a pure function of swipe progress, so a half-swipe leaves it half-way.</p>
+    <div class="box">
+      <div class="row"><span class="eyebrow">progress</span><b class="mono-l" id="pval" style="color:var(--text)">0.00</b></div>
+      <input type="range" id="scrub" min="0" max="3" step="0.01" value="0">
+      <table class="kf" id="kfTable"></table>
+    </div>
+    <p style="font-size:13px">In the app this table becomes the timeline of one Rive/Lottie file: progress 0→3 maps to animation time, so swapping the asset changes the look without touching code.</p>
+  </div>
+</main>
+
+<!-- ============ TAB 3: HOME · CARD STACK ============ -->
+<main id="tab-home" hidden>
+  <div class="phone" id="homePhone">
+    <div class="status"><span>9:41</span><span class="dots">5G ▮▮▮</span></div>
+    <div class="hs" id="homeScroll"></div>
+    <div class="tabbar"><div class="on"><i></i>Home</div><div><i></i>Insights</div><div class="soon"><i></i>Coming soon</div><div><i></i>Settings</div></div>
+  </div>
+
+  <div class="panel">
+    <div>
+      <div class="eyebrow">Home · Which Brick?</div>
+      <h2>Your Bricks, stacked.</h2>
+    </div>
+    <p>Same Home layout as the app today. Only the Brick rail becomes a stack: the Brick you used last sits on top, awake. The others doze behind it.</p>
+    <div class="box">
+      <div class="eyebrow">Compare</div>
+      <div class="seg" id="variantSeg"><button data-v="current">Current app</button><button class="on" data-v="new">Card stack</button></div>
+      <div class="row">Bricks paired
+        <div class="seg" id="countSeg"><button data-n="1">1</button><button data-n="2">2</button><button class="on" data-n="3">3</button><button data-n="4">4</button></div>
+      </div>
+      <div class="row">Colour per Brick <button class="switch on" id="perColour" aria-label="Colour per Brick"></button></div>
+    </div>
+    <div class="box">
+      <div class="eyebrow">Try</div>
+      <ul>
+        <li>Drag the top card left or right to send it to the back.</li>
+        <li>Click a card peeking behind to bring it forward.</li>
+        <li>Pick a ritual chip; the button text follows.</li>
+      </ul>
+      <button class="evbtn" id="simHomeTap"><span>▶ simulate NFC tap</span><span>session_started</span></button>
+    </div>
+    <div class="box">
+      <div class="eyebrow">Option buttons · what changed</div>
+      <ul>
+        <li>Ritual chips: rounded pills with a small dot that turns red when picked.</li>
+        <li>Main button: pill shape to match the chips.</li>
+        <li>Breathing: underlined link → quiet pill button.</li>
+        <li>"+ Pair" moves next to "Which Brick?" (stays one tap away).</li>
+      </ul>
+    </div>
+  </div>
+</main>
+
+<script>
+/* =================================================================
+   1. THE CONTRACT. The app only ever calls persona.emit(<name>).
+   Everything below PERSONA is "the asset": swap it, the app doesn't change.
+   ================================================================= */
+const STATES = ['idle', 'session_started', 'session_completed', 'blocked_app_opened'];
+
+const PERSONA = {
+  idle:               { eyes: 'open',    mouth: 'smile', line: 'Ready when you are.',  motion: 'float'  },
+  session_started:    { eyes: 'focused', mouth: 'firm',  line: 'Locked in. Go.',       motion: 'lockin' },
+  session_completed:  { eyes: 'happy',   mouth: 'grin',  line: 'Nice. Session done.',  motion: 'hop'    },
+  blocked_app_opened: { eyes: 'glance',  mouth: 'small', line: 'Hey, back to focus?',  motion: 'tilt'   },
+};
+
+// Face shapes on a 100×63 card. Every path is "M Q" so the browser can morph between them.
+const EYES = {
+  open:    cx => `M${cx} 21 Q${cx} 26.5 ${cx} 32`,
+  blink:   cx => `M${cx - 3.5} 27 Q${cx} 28 ${cx + 3.5} 27`,
+  focused: cx => `M${cx - 3} 24 Q${cx} 24.5 ${cx + 3} 26`,
+  happy:   cx => `M${cx - 5} 29 Q${cx} 19 ${cx + 5} 29`,
+  glance:  cx => `M${cx + 4} 21 Q${cx + 4} 26 ${cx + 4} 31`,
+};
+const MOUTH = {
+  smile: 'M44 41 Q50 46 56 41',
+  firm:  'M45 43 Q50 43.5 55 43',
+  grin:  'M40 39 Q50 52 60 39',
+  small: 'M45.5 43 Q50 45.5 54.5 41.5',   // lopsided half-smile: a nudge, not a frown
+};
+
+const root = document.documentElement;
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const cards = new Set();
+
+function setPath(el, d) {
+  el.setAttribute('d', d);
+  el.style.d = `path("${d}")`;
+}
+
+function createCard(host, { width = 160, bubble = true, mini = false, word = 'bricks' } = {}) {
+  host.classList.add('pc', 'persona');
+  if (mini) host.classList.add('mini');
+  host.style.setProperty('--w', width + 'px');
+  host.innerHTML = `
+    ${bubble ? '<div class="bubble"></div>' : ''}
+    <div class="pc-motion"><div class="pc-tilt"><div class="pc-body">
+      <svg class="pc-nfc" viewBox="0 0 24 24"><path d="M7 8a6 6 0 0 1 0 8M11 5a10 10 0 0 1 0 14M15 2.5a13.5 13.5 0 0 1 0 19"/></svg>
+      <svg class="pc-face" viewBox="0 0 100 63.6"><g transform="translate(50 20) scale(.8) translate(-50 -30)"><path class="e"/><path class="e"/><path class="m"/></g></svg>
+      <span class="pc-word">${word}</span>
+    </div></div></div>
+    ${mini ? '' : '<div class="pc-shadow"></div>'}`;
+  const [eL, eR, m] = host.querySelectorAll('.pc-face path');
+  const motion = host.querySelector('.pc-motion');
+  const bub = host.querySelector('.bubble');
+  let blinkTimer = null;
+
+  const api = {
+    state: 'idle',
+    setState(name, { say = true } = {}) {
+      const spec = PERSONA[name];
+      api.state = name;
+      setPath(eL, EYES[spec.eyes](40));
+      setPath(eR, EYES[spec.eyes](60));
+      setPath(m, MOUTH[spec.mouth]);
+      motion.className = 'pc-motion';
+      void motion.offsetWidth;                 // restart one-shot animations
+      motion.classList.add('m-' + spec.motion);
+      if (bub) { bub.textContent = spec.line; bub.classList.toggle('on', say); }
+      api.scheduleBlink();
+    },
+    hush() { bub && bub.classList.remove('on'); },
+    // Cards waiting in the stack doze; only the one on top is awake. Asset-internal, not an app event.
+    sleep() {
+      api.state = 'asleep';
+      clearTimeout(blinkTimer);
+      setPath(eL, EYES.blink(40)); setPath(eR, EYES.blink(60)); setPath(m, MOUTH.firm);
+      motion.className = 'pc-motion';
+      api.hush();
+    },
+    scheduleBlink() {
+      clearTimeout(blinkTimer);
+      if (api.state !== 'idle' || reduced || !host.isConnected) return;
+      blinkTimer = setTimeout(() => {
+        setPath(eL, EYES.blink(40)); setPath(eR, EYES.blink(60));
+        setTimeout(() => { if (api.state === 'idle') { setPath(eL, EYES.open(40)); setPath(eR, EYES.open(60)); } api.scheduleBlink(); }, 130);
+      }, 3200 + Math.random() * 2400);
+    },
+    destroy() { clearTimeout(blinkTimer); cards.delete(api); },
+  };
+  cards.add(api);
+  api.setState('idle', { say: false });
+  return api;
+}
+
+/* =================================================================
+   2. CARD CHARACTER TAB — each state shown on the screen it fires from
+   ================================================================= */
+const charScreen = document.getElementById('charScreen');
+let current = null, timerInt = null;
+
+const TABBAR = `<div class="tabbar"><div class="on"><i></i>Home</div><div><i></i>Insights</div><div class="soon"><i></i>Coming soon</div><div><i></i>Settings</div></div>`;
+
+const SCREENS = {
+  idle: () => `
+    <div class="home screen" style="position:static;flex:1">
+      <div><div class="eyebrow">Friday · 10 Oct</div><div class="h-display" style="margin-top:4px">Good evening</div></div>
+      <div class="chips" id="chipRow"><span class="chip on">Deep work</span><span class="chip">Study</span><span class="chip">Prayer</span></div>
+      <div class="hero"><div id="slot"></div></div>
+      <div class="rail">
+        <div class="brick sel"><b>Deep work</b><span>DESK BRICK · 6 APPS</span></div>
+        <div class="brick"><b>Study</b><span>BAG BRICK · OWN</span></div>
+      </div>
+      <button class="btn primary">Start with an intention</button>
+    </div>${TABBAR}`,
+  session_started: () => `
+    <div class="focus screen" style="position:static;flex:1">
+      <div class="eyebrow">Deep work · focus in progress</div>
+      <div class="timer" id="timer">25:00</div>
+      <div class="mono-l">of 25 min · desk brick</div>
+      <div class="hero" style="height:220px;width:100%"><div id="slot"></div></div>
+      <div class="intent"><div class="eyebrow">You're here to</div><div>Finish chapter 3 notes</div></div>
+      <div class="mono-l" style="margin-top:auto">Tap your Brick to end</div>
+      <button class="btn ghost">Emergency unlock</button>
+    </div>`,
+  session_completed: () => `
+    <div class="focus screen" style="position:static;flex:1">
+      <div class="eyebrow">Deep work · focus in progress</div>
+      <div class="timer">00:00</div>
+    </div>
+    <div class="dimmed"></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="hero" style="height:170px;width:100%;margin-top:30px"><div id="slot"></div></div>
+      <div class="h-display" style="font-size:26px;line-height:30px">47 minutes, protected.</div>
+      <div class="metrics">
+        <div class="metric"><b>47m</b><span>focused</span></div>
+        <div class="metric"><b>6</b><span>pulls resisted</span></div>
+      </div>
+      <button class="btn primary">Done</button>
+    </div>`,
+  blocked_app_opened: () => `
+    <div class="blocked screen" style="position:static;flex:1">
+      <div class="eyebrow">Deep work · focus in progress</div>
+      <div class="h-display" style="font-size:34px;line-height:38px">Instagram<br>can wait.</div>
+      <div class="hero" style="height:200px"><div id="slot"></div></div>
+      <div class="intent"><div class="eyebrow">You're here to</div><div>Finish chapter 3 notes</div></div>
+      <div class="mono-l">18 min left · 3rd try on Instagram</div>
+      <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+        <button class="btn primary">Back to focus</button>
+        <button class="link">Open anyway (ends session)</button>
+      </div>
+    </div>`,
+};
+
+const log = document.getElementById('log');
+function logLine(s) { log.textContent += s + '\n'; log.scrollTop = log.scrollHeight; }
+
+function showState(name) {
+  clearInterval(timerInt);
+  if (current) current.destroy();
+  charScreen.innerHTML = SCREENS[name]();
+  const slot = document.getElementById('slot');
+  current = createCard(slot, { width: name === 'idle' ? 172 : 150 });
+  requestAnimationFrame(() => current.setState(name));
+  document.querySelectorAll('#evButtons .evbtn, [data-guide]').forEach(b => b.classList.toggle('on', b.dataset.ev === name));
+  logLine(`persona.emit('${name}')`);
+  if (name === 'session_started') {
+    let s = 25 * 60;
+    timerInt = setInterval(() => { s--; const t = document.getElementById('timer'); if (t) t.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }, 1000);
+  }
+}
+
+function showGuide() {
+  showState('idle');
+  current.hush();
+  log.textContent = log.textContent.replace(/persona\.emit\('idle'\)\n$/, '');
+  logLine(`walkthrough.step('home.ritualPicker', { guide: true })`);
+  const chips = document.getElementById('chipRow');
+  const pr = document.getElementById('charPhone').getBoundingClientRect();
+  const r = chips.getBoundingClientRect();
+  const ring = document.createElement('div');
+  ring.className = 'ring';
+  Object.assign(ring.style, { left: (r.left - pr.left - 6) + 'px', top: (r.top - pr.top - 6 - 34) + 'px', width: (r.width + 12) + 'px', height: (r.height + 12) + 'px' });
+  const tip = document.createElement('div');
+  tip.className = 'tip';
+  tip.style.top = (r.bottom - pr.top - 34 + 16) + 'px';
+  tip.innerHTML = `<div id="miniSlot" style="padding-top:2px"></div>
+    <div class="tip-body"><div class="eyebrow">1 of 4</div><h4>Say what this session is for</h4>
+    <p>Pick a ritual. It changes the question Bricks asks you and what it tracks afterwards.</p>
+    <div class="tip-actions"><button class="link" style="padding:0;font-size:13px">Skip tips</button><button class="tip-next">Next</button></div></div>`;
+  charScreen.append(ring, tip);
+  const mini = createCard(document.getElementById('miniSlot'), { width: 54, bubble: false, mini: true });
+  mini.setState('idle', { say: false });
+  document.querySelectorAll('#evButtons .evbtn').forEach(b => b.classList.remove('on'));
+  document.querySelector('[data-guide]').classList.add('on');
+}
+
+const evButtons = document.getElementById('evButtons');
+STATES.forEach(s => {
+  const b = document.createElement('button');
+  b.className = 'evbtn'; b.dataset.ev = s;
+  b.innerHTML = `<span>${s}</span><span>${PERSONA[s].line}</span>`;
+  b.onclick = () => showState(s);
+  evButtons.append(b);
+});
+document.querySelector('[data-guide]').onclick = showGuide;
+
+document.getElementById('rules').innerHTML = STATES.map(s => {
+  const n = PERSONA[s].line.split(/\s+/).length;
+  return `<div class="rule"><span>${PERSONA[s].line}</span><b>${n} ${n <= 5 ? '✓' : '✗'}</b></div>`;
+}).join('');
+
+const personaToggle = document.getElementById('personaToggle');
+personaToggle.onclick = () => {
+  personaToggle.classList.toggle('on');
+  document.getElementById('charPhone').classList.toggle('persona-off', !personaToggle.classList.contains('on'));
+};
+
+/* =================================================================
+   3. CARD ONBOARDING TAB — one progress value drives everything
+   ================================================================= */
+const W = 360;
+// Pose per page: card x/y/rotX/rotY/rotZ/scale, phone prop x/y/rot/opacity, stage height.
+const KF = [
+  { x:   0, y:  10, rx: 16, ry: -24, rz: -8, s: 1.12, px:   0, py: 330, pr:   0, po: 0, h: 300 },
+  { x: -20, y:  70, rx: 60, ry:   0, rz:  0, s: 1.00, px:  66, py: -44, pr:  14, po: 1, h: 300 },
+  { x:-112, y:   0, rx:  0, ry:  18, rz:  8, s: 0.36, px:   0, py: 330, pr:   0, po: 0, h:  96 },
+  { x: -18, y:  14, rx:  6, ry:  14, rz: -4, s: 1.00, px:  92, py: -14, pr: -22, po: 1, h: 300 },
+];
+const LABELS = ['Intro', 'Pair', 'Permissions', 'Tap to start'];
+const smooth = t => t * t * (3 - 2 * t);
+
+function poseAt(p) {
+  p = Math.max(0, Math.min(KF.length - 1, p));
+  if (reduced) p = Math.round(p);            // no travel: snap between poses
+  const i = Math.min(Math.floor(p), KF.length - 2);
+  const t = smooth(p - i), a = KF[i], b = KF[i + 1], o = {};
+  for (const k in a) o[k] = a[k] + (b[k] - a[k]) * t;
+  return o;
+}
+
+const onbCardEl = document.getElementById('onbCard');
+const onbCard = createCard(onbCardEl, { width: 180 });
+const stage = document.getElementById('stage');
+const track = document.getElementById('track');
+const propPhone = document.getElementById('propPhone');
+const ripple = document.getElementById('ripple');
+const cta = document.getElementById('cta');
+const dots = [...document.querySelectorAll('#pdots i')];
+const scrub = document.getElementById('scrub');
+let p = 0, paired = false, started = false;
+
+function renderOnb() {
+  const o = poseAt(p);
+  stage.style.height = o.h + 'px';
+  track.style.transform = `translateX(${-p * W}px)`;
+  onbCardEl.style.transform = `translate(-50%,-50%) translate(${o.x}px,${o.y}px) scale(${o.s}) rotateX(${o.rx}deg) rotateY(${o.ry}deg) rotateZ(${o.rz}deg)`;
+  propPhone.style.transform = `translate(-50%,-50%) translate(${o.px}px,${o.py}px) rotate(${o.pr}deg)`;
+  propPhone.style.opacity = o.po;
+  ripple.style.transform = `translate(${o.x - 5}px,${o.y - 5}px)`;
+  const near = Math.round(p);
+  ripple.classList.toggle('on', (near === 1 && paired && Math.abs(p - 1) < .15) || (near === 3 && started && Math.abs(p - 3) < .15));
+  dots.forEach((d, i) => {
+    const k = Math.max(0, 1 - Math.abs(p - i));
+    d.style.width = (7 + 15 * k) + 'px';
+    d.style.background = k > .5 ? 'var(--accent)' : 'var(--border)';
+  });
+  cta.textContent = near === 3 ? 'Go to Home' : 'Continue';
+  document.getElementById('skip').style.visibility = near === 3 ? 'hidden' : 'visible';
+  scrub.value = p;
+  document.getElementById('pval').textContent = p.toFixed(2);
+  document.querySelectorAll('#kfTable tr[data-i]').forEach(tr => tr.classList.toggle('cur', +tr.dataset.i === near));
+  if (near !== 3 && started) { started = false; onbCard.setState('idle', { say: false }); }
+}
+
+let anim = null;
+function animateTo(target) {
+  target = Math.max(0, Math.min(3, target));
+  cancelAnimationFrame(anim);
+  if (reduced) { p = target; return renderOnb(); }
+  const from = p, t0 = performance.now(), dur = 280;   // timing.sheetIn
+  const step = now => {
+    const t = Math.min(1, (now - t0) / dur);
+    p = from + (target - from) * (1 - Math.pow(1 - t, 3));
+    renderOnb();
+    if (t < 1) anim = requestAnimationFrame(step);
+  };
+  anim = requestAnimationFrame(step);
+}
+
+// Swipe: pointer drag scrubs progress directly.
+const swipe = document.getElementById('swipe');
+let drag = null;
+swipe.addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  cancelAnimationFrame(anim);
+  drag = { x: e.clientX, p, t: performance.now(), lastX: e.clientX, v: 0 };
+  swipe.setPointerCapture(e.pointerId);
+  swipe.classList.add('drag');
+});
+swipe.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const now = performance.now();
+  drag.v = (e.clientX - drag.lastX) / Math.max(1, now - drag.t);
+  drag.lastX = e.clientX; drag.t = now;
+  let np = drag.p - (e.clientX - drag.x) / W;
+  if (np < 0) np *= .3; if (np > 3) np = 3 + (np - 3) * .3;   // rubber band at the ends
+  p = np; renderOnb();
+});
+const endDrag = () => {
+  if (!drag) return;
+  swipe.classList.remove('drag');
+  const base = drag.p, moved = p - base;
+  let target = Math.round(p);
+  if (Math.abs(drag.v) > .4) target = drag.v < 0 ? Math.ceil(base + .01) : Math.floor(base - .01);
+  else if (Math.abs(moved) > .25) target = moved > 0 ? Math.ceil(p) : Math.floor(p);
+  drag = null;
+  animateTo(target);
+};
+swipe.addEventListener('pointerup', endDrag);
+swipe.addEventListener('pointercancel', endDrag);
+
+cta.onclick = () => { if (Math.round(p) < 3) animateTo(Math.round(p) + 1); else { animateTo(0); } };
+document.getElementById('skip').onclick = () => animateTo(3);
+scrub.oninput = () => { cancelAnimationFrame(anim); p = +scrub.value; renderOnb(); };
+document.addEventListener('keydown', e => {
+  if (document.getElementById('tab-onb').hidden) return;
+  if (e.key === 'ArrowRight') animateTo(Math.round(p) + 1);
+  if (e.key === 'ArrowLeft') animateTo(Math.round(p) - 1);
+});
+
+document.getElementById('simPair').onclick = () => {
+  paired = true;
+  const st = document.getElementById('pairStatus');
+  st.classList.add('ok'); st.lastElementChild.textContent = 'Paired · Desk Brick';
+  renderOnb();
+};
+document.getElementById('simStart').onclick = () => {
+  started = true;
+  onbCard.setState('session_started');      // same contract as in the app
+  renderOnb();
+};
+
+const PERMS = [
+  { t: 'Accessibility', d: 'Sees when a blocked app opens', req: true },
+  { t: 'Display over apps', d: 'Shows the lock screen', req: false },
+  { t: 'Notifications', d: 'Session and prayer alerts', req: false },
+];
+document.getElementById('perms').innerHTML = PERMS.map((x, i) =>
+  `<div class="perm"><div><b>${x.t}${x.req ? '<span class="tag">NEEDED</span>' : ''}</b><span>${x.d}</span></div><button data-perm="${i}">Allow</button></div>`).join('');
+document.getElementById('perms').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  b.classList.add('done'); b.textContent = '✓ On';
+};
+
+document.getElementById('kfTable').innerHTML =
+  `<tr><th>page</th><th>x</th><th>y</th><th>rotX</th><th>rotY</th><th>scale</th><th>phone</th></tr>` +
+  KF.map((k, i) => `<tr data-i="${i}"><td>${i} ${LABELS[i]}</td><td>${k.x}</td><td>${k.y}</td><td>${k.rx}°</td><td>${k.ry}°</td><td>${k.s}</td><td>${k.po ? 'in' : '—'}</td></tr>`).join('');
+
+/* =================================================================
+   3b. HOME TAB — current Brick rail vs. card stack
+   ================================================================= */
+const ICONS = {
+  gear: '<svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+  info: '<svg class="ico s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>',
+  radio: '<svg class="ico s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg>',
+  moon: '<svg class="ico s" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  lock: '<svg class="ico s" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+  plus: '<svg class="ico s" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+};
+const RITUALS = [
+  ['Study', 'Finish one concrete piece of coursework.'],
+  ['Work', 'Ship one visible result without switching tasks.'],
+  ['Bedtime', 'Put the phone down so you can wind down.'],
+  ['Family', 'Give the people in front of you your attention.'],
+  ['Prayer', 'Keep a few minutes free of notifications.'],
+];
+const ALL_BRICKS = [
+  { id: 'desk',    name: 'Desk',    mode: 'Deep Work', end: 'Ends on tap',  strict: 'Strict',   apps: 6, own: false, finish: 'graphite' },
+  { id: 'bag',     name: 'Bag',     mode: 'Custom',    end: '50 min limit', strict: 'Flexible', apps: 4, own: true,  finish: 'red' },
+  { id: 'bedside', name: 'Bedside', mode: 'Wind Down', end: 'Ends on tap',  strict: 'Flexible', apps: 9, own: false, finish: 'ivory' },
+  { id: 'gym',     name: 'Gym',     mode: 'Custom',    end: '90 min limit', strict: 'Strict',   apps: 3, own: true,  finish: 'graphite' },
+];
+const home = { variant: 'new', count: 3, ritual: 0, order: ALL_BRICKS.slice(0, 3).map(b => b.id), selected: 'desk', perColour: true };
+const homeCards = new Map();   // id -> { el, api }
+const brickById = id => ALL_BRICKS.find(b => b.id === id);
+const metaLine = b => `${b.end} · ${b.strict} · ${b.apps} apps${b.own ? ' · own' : ''}`.toUpperCase();
+
+function renderHome() {
+  homeCards.forEach(c => c.api.destroy()); homeCards.clear();
+  const isNew = home.variant === 'new';
+  const top = brickById(isNew ? home.order[0] : home.selected);
+  const ritual = RITUALS[home.ritual];
+  const hs = document.getElementById('homeScroll');
+  hs.className = 'hs ' + (isNew ? 'v-new' : 'v-cur');
+  hs.innerHTML = `
+    <div class="h-head"><span>Friday, Oct 10</span>${ICONS.gear}</div>
+    <div class="sec"><span>What’s this session for?</span><span class="info">${ICONS.info}What’s this?</span></div>
+    <div class="rrail">${RITUALS.map((r, i) => `<button class="rchip ${i === home.ritual ? 'on' : ''}" data-r="${i}">${isNew ? '<span class="dot"></span>' : ''}${r[0]}</button>`).join('')}</div>
+    <div class="tagline">${ritual[1]}</div>
+    <div class="sec"><span>Which Brick?</span>${isNew ? `<button class="pair">${ICONS.plus}Pair</button>` : '<small>Hold to edit</small>'}</div>
+    ${isNew ? `
+      <div class="stack" id="stack"></div>
+      <div class="scap">
+        <div><div class="mmode">${top.mode}</div><div class="mmeta">${metaLine(top)}</div></div>
+        <div style="text-align:right"><div class="sdots">${home.order.map((id, i) => `<i class="${i === 0 ? 'on' : ''}"></i>`).join('')}</div><small style="font-size:11px;color:var(--faint)">Hold to edit</small></div>
+      </div>` : `
+      <div class="mrail">${home.order.map(id => { const b = brickById(id); return `
+        <button class="mcard ${id === home.selected ? 'on' : ''}" data-id="${id}">
+          <div class="mtop"><span class="bmark">b</span><span class="mname">${b.name.toUpperCase()}</span></div>
+          <div><div class="mmode">${b.mode}</div><div class="mmeta">${b.end.toUpperCase()}</div><div class="mmeta">${b.strict.toUpperCase()} · ${b.apps} APPS${b.own ? ' · OWN' : ''}</div></div>
+        </button>`; }).join('')}</div>`}
+    <button class="btn primary">Set ${ritual[0].toLowerCase()} intention</button>
+    <div class="tap-hint">${ICONS.radio}or tap ${top.name} to start right away</div>
+    <button class="breath ${isNew ? 'pill' : ''}">${ICONS.moon}${isNew ? 'Breathe first' : 'Settle first with a breathing reset'}</button>
+    <div class="summary">
+      <div class="top"><div><div class="v">1h 12m</div><div class="l">FOCUSED TODAY · 2 SESSIONS</div></div><span style="font-size:13px">Week</span></div>
+      <div class="bars">${[14, 22, 9, 30, 18, 12, 26].map(h => `<i style="height:${h}px"></i>`).join('')}</div>
+    </div>
+    <div class="st-row">${ICONS.lock}Nothing blocked right now</div>`;
+
+  hs.querySelectorAll('.rchip').forEach(c => c.onclick = () => { home.ritual = +c.dataset.r; const y = hs.scrollTop; renderHome(); hs.scrollTop = y; });
+  hs.querySelectorAll('.mcard').forEach(c => c.onclick = () => { home.selected = c.dataset.id; renderHome(); });
+  if (isNew) buildStack();
+}
+
+function buildStack() {
+  const stack = document.getElementById('stack');
+  home.order.forEach(id => {
+    const b = brickById(id);
+    const el = document.createElement('div');
+    stack.append(el);
+    const api = createCard(el, { width: 260, word: b.name.toLowerCase() });
+    if (home.perColour) el.classList.add('f-' + b.finish);
+    el.dataset.id = id;
+    homeCards.set(id, { el, api });
+  });
+  layoutStack(true);
+  bindStackDrag(stack);
+}
+
+// Index 0 is on top; the next two peek out above it, smaller and dimmer.
+function stackPose(i) {
+  const k = Math.min(i, 2);
+  return { y: -18 * k, s: 1 - .07 * k, o: i > 2 ? 0 : 1, z: 10 - i };
+}
+function layoutStack(initial = false) {
+  home.order.forEach((id, i) => {
+    const { el, api } = homeCards.get(id);
+    const p = stackPose(i);
+    el.style.transform = `translateY(${p.y}px) scale(${p.s})`;
+    el.style.opacity = p.o;
+    el.style.zIndex = p.z;
+    el.classList.toggle('back', i > 0);
+    if (i === 0) { if (initial || api.state === 'asleep') api.setState('idle', { say: false }); }
+    else api.sleep();
+  });
+}
+
+function sendTopToBack(dir) {
+  const prev = home.order.slice();
+  const { el } = homeCards.get(prev[0]);
+  const finish = () => {
+    home.order.push(home.order.shift());
+    refreshStack(prev, dir);
+  };
+  if (reduced) return finish();
+  el.style.transform = `translateX(${dir * 380}px) rotate(${dir * 18}deg)`;
+  el.style.opacity = 0;
+  setTimeout(finish, 200);
+}
+function bringToFront(id) {
+  const prev = home.order.slice();
+  home.order = [id, ...home.order.filter(x => x !== id)];
+  refreshStack(prev, 0);
+}
+// Re-render caption and buttons; start each card where it was, then let it slide to its new slot.
+function refreshStack(prev, throwDir) {
+  const hs = document.getElementById('homeScroll'); const y = hs.scrollTop;
+  renderHome();
+  hs.scrollTop = y;
+  if (reduced) return;
+  home.order.forEach(id => {
+    const { el } = homeCards.get(id);
+    const was = prev.indexOf(id);
+    el.style.transition = 'none';
+    if (throwDir && was === 0) { el.style.transform = `translateX(${throwDir * 380}px) rotate(${throwDir * 18}deg)`; el.style.opacity = 0; }
+    else { const p = stackPose(was); el.style.transform = `translateY(${p.y}px) scale(${p.s})`; el.style.opacity = p.o; }
+  });
+  void document.body.offsetWidth;
+  home.order.forEach(id => { homeCards.get(id).el.style.transition = ''; });
+  layoutStack();
+}
+
+function bindStackDrag(stack) {
+  let drag = null;
+  stack.addEventListener('pointerdown', e => {
+    const card = e.target.closest('.pc'); if (!card) return;
+    if (card.dataset.id !== home.order[0]) { bringToFront(card.dataset.id); return; }
+    drag = { x: e.clientX, el: card, dx: 0 };
+    card.classList.add('dragging');
+    stack.setPointerCapture(e.pointerId);
+  });
+  stack.addEventListener('pointermove', e => {
+    if (!drag) return;
+    drag.dx = e.clientX - drag.x;
+    drag.el.style.transform = `translateX(${drag.dx}px) rotate(${drag.dx / 18}deg)`;
+  });
+  const end = () => {
+    if (!drag) return;
+    const { el, dx } = drag; drag = null;
+    if (Math.abs(dx) > 70 && home.order.length > 1) return sendTopToBack(Math.sign(dx));
+    el.classList.remove('dragging');
+    el.style.transform = 'none';
+  };
+  stack.addEventListener('pointerup', end);
+  stack.addEventListener('pointercancel', end);
+}
+
+document.getElementById('variantSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#variantSeg button').forEach(x => x.classList.toggle('on', x === b));
+  home.variant = b.dataset.v;
+  home.selected = home.order[0];
+  renderHome();
+};
+document.getElementById('countSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#countSeg button').forEach(x => x.classList.toggle('on', x === b));
+  home.count = +b.dataset.n;
+  home.order = ALL_BRICKS.slice(0, home.count).map(x => x.id);
+  home.selected = home.order[0];
+  renderHome();
+};
+const perColour = document.getElementById('perColour');
+perColour.onclick = () => { perColour.classList.toggle('on'); home.perColour = perColour.classList.contains('on'); renderHome(); };
+document.getElementById('simHomeTap').onclick = () => {
+  if (home.variant !== 'new') return;
+  homeCards.get(home.order[0]).api.setState('session_started');
+};
+
+/* =================================================================
+   4. Page controls
+   ================================================================= */
+document.getElementById('tabs').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  ['char', 'onb', 'home'].forEach(t => { document.getElementById('tab-' + t).hidden = b.dataset.tab !== t; });
+  if (b.dataset.tab === 'onb') renderOnb();
+  if (b.dataset.tab === 'home') renderHome();
+};
+document.getElementById('themeSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('#themeSeg button').forEach(x => x.classList.toggle('on', x === b));
+  root.dataset.theme = b.dataset.v;
+};
+document.getElementById('finish').onchange = e => { root.dataset.finish = e.target.value; };
+const rmToggle = document.getElementById('rmToggle');
+function setReduced(v) {
+  reduced = v;
+  root.classList.toggle('rm', v);
+  rmToggle.classList.toggle('on', v);
+  cards.forEach(c => c.scheduleBlink());
+  renderOnb();
+}
+rmToggle.onclick = () => setReduced(!reduced);
+
+setReduced(reduced);
+showState('idle');
+</script>
+</body>
+</html>

@@ -19,7 +19,7 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
-    fun startBlocking(sessionId: Double, tagId: String?, blockedPackages: ReadableArray, strict: Boolean, startedAt: Double, plannedEndTime: Double?, promise: Promise) {
+    fun startBlocking(sessionId: Double, tagId: String?, blockedPackages: ReadableArray, strict: Boolean, startedAt: Double, plannedEndTime: Double?, intention: String?, ritual: String?, keyName: String?, promise: Promise) {
         try {
             val packages = mutableListOf<String>()
             for (i in 0 until blockedPackages.size()) {
@@ -32,10 +32,15 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
                 strict = strict,
                 startedAt = startedAt.toLong(),
                 plannedEndTime = plannedEndTime?.toLong(),
-                blockedCount = 0
+                blockedCount = 0,
+                intention = intention?.trim()?.take(160),
+                ritual = ritual,
+                keyName = keyName?.trim()?.take(40)
             )
             StateStore.save(state)
+            StateStore.clearHeldNotifications()
             BlockGuard.reset()
+            NotificationBlockerService.sweepNow()
 
             val intent = Intent(reactContext, FocusBlockingService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -230,16 +235,22 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
+    /**
+     * Opens the system battery-optimisation list so the user can switch Bricks to
+     * "Not optimised". The one-tap ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS dialog needs
+     * the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission, which Google Play only allows for
+     * a short list of app categories (chat, VPN, device companions, ...) — focus blockers are
+     * not among them, so declaring it risks rejection.
+     */
     fun requestBatteryOptimizationExemption(promise: Promise) {
         try {
-            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-            intent.data = android.net.Uri.parse("package:" + reactContext.packageName)
+            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             reactContext.startActivity(intent)
             promise.resolve(null)
         } catch (e: Exception) {
             try {
-                val fallback = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + reactContext.packageName))
                 fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 reactContext.startActivity(fallback)
                 promise.resolve(null)
@@ -350,9 +361,59 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
-    fun schedulePrayerReminder(hour: Double, minute: Double, promise: Promise) {
+    fun setPersonaEnabled(enabled: Boolean, promise: Promise) {
+        StateStore.setPersonaEnabled(enabled)
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun setSilenceEnabled(enabled: Boolean, promise: Promise) {
+        StateStore.setSilenceEnabled(enabled)
+        if (enabled) NotificationBlockerService.sweepNow()
+        promise.resolve(null)
+    }
+
+    @ReactMethod
+    fun getSilenceEnabled(promise: Promise) {
+        promise.resolve(StateStore.isSilenceEnabled())
+    }
+
+    @ReactMethod
+    fun hasNotificationAccess(promise: Promise) {
+        promise.resolve(NotificationBlockerService.isAccessGranted(reactContext))
+    }
+
+    /** Opens the Notification access screen — straight to Bricks' toggle where Android supports it. */
+    @ReactMethod
+    fun requestNotificationAccess(promise: Promise) {
         try {
-            PrayerReminderScheduler.schedule(reactContext, hour.toInt().coerceIn(0, 23), minute.toInt().coerceIn(0, 59))
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+                    Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+                    android.content.ComponentName(reactContext, NotificationBlockerService::class.java).flattenToString()
+                )
+            } else {
+                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                reactContext.startActivity(intent)
+            } catch (e: Exception) {
+                reactContext.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            promise.resolve(null)
+        } catch (e: Exception) {
+            promise.reject(e)
+        }
+    }
+
+    /** Opens this app's App info page, where "Allow restricted settings" lives for sideloaded installs. */
+    @ReactMethod
+    fun openAppInfo(promise: Promise) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + reactContext.packageName))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            reactContext.startActivity(intent)
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject(e)
@@ -360,9 +421,15 @@ class BricksBlockingModule(private val reactContext: ReactApplicationContext) : 
     }
 
     @ReactMethod
-    fun cancelPrayerReminder(promise: Promise) {
+    fun getHeldNotificationCount(promise: Promise) {
+        promise.resolve(StateStore.loadHeldNotifications().values.sum())
+    }
+
+    /** Replaces every prayer reminder with the given JSON list of {label, hour, minute, enabled}. */
+    @ReactMethod
+    fun setPrayerReminders(json: String, promise: Promise) {
         try {
-            PrayerReminderScheduler.cancel(reactContext)
+            PrayerReminderScheduler.setReminders(reactContext, json)
             promise.resolve(null)
         } catch (e: Exception) {
             promise.reject(e)

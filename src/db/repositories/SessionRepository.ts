@@ -63,11 +63,35 @@ export class SessionRepository {
     return rows.map(r => this.mapRowToSession(r));
   }
 
-  async getPendingOutcome(): Promise<Session | undefined> {
+  /**
+   * Sessions with any time inside [start, end): ones that started before the range but ran
+   * into it count too. Stats use this; `sessionsBetween` only sees sessions that *started*
+   * in the range, which loses the part of an overnight session that falls on the next day.
+   */
+  async sessionsOverlapping(start: number, end: number): Promise<Session[]> {
+    const rows = await this.driver.query(
+      `SELECT * FROM sessions
+       WHERE start_time < ? AND (end_time IS NULL OR end_time > ?)
+       ORDER BY start_time DESC`,
+      [end, start]
+    );
+    return rows.map(r => this.mapRowToSession(r));
+  }
+
+  /**
+   * Latest finished session still waiting for a done / partial / not done answer.
+   * `routineTypes` limits this to rituals that ask for one — without it, bedtime, family
+   * and prayer sessions were being graded too.
+   */
+  async getPendingOutcome(routineTypes?: string[]): Promise<Session | undefined> {
+    if (routineTypes && routineTypes.length === 0) return undefined;
+    const typeFilter = routineTypes ? `AND routine_type IN (${routineTypes.map(() => '?').join(', ')})` : '';
     const row = await this.driver.get(
       `SELECT * FROM sessions
        WHERE end_time IS NOT NULL AND ended_via != 'start_failed' AND intention IS NOT NULL AND TRIM(intention) != '' AND outcome IS NULL
-       ORDER BY end_time DESC LIMIT 1`
+       ${typeFilter}
+       ORDER BY end_time DESC LIMIT 1`,
+      routineTypes ?? []
     );
     return row ? this.mapRowToSession(row) : undefined;
   }

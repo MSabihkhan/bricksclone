@@ -18,7 +18,12 @@ object BlockGuard {
     @Volatile
     private var lastLaunchAtMs = 0L
 
-    fun handleForegroundPackage(context: Context, pkg: String) {
+    /**
+     * @param beforeLaunch runs just before the lock screen is started. The accessibility
+     * service uses it to send Back, which closes a blocked app opened in a floating /
+     * pop-up window — otherwise that window can stay on top of the full-screen lock.
+     */
+    fun handleForegroundPackage(context: Context, pkg: String, beforeLaunch: (() -> Unit)? = null) {
         val state = StateStore.load() ?: return
         if (pkg !in state.blockedPackages) return
         if (pkg == context.packageName) return
@@ -46,7 +51,9 @@ object BlockGuard {
             )
             putExtra(BlockedActivity.EXTRA_LABEL, label)
             putExtra(BlockedActivity.EXTRA_STRICT, state.strict)
+            putExtra(BlockedActivity.EXTRA_PACKAGE, pkg)
         }
+        beforeLaunch?.invoke()
         context.startActivity(intent)
     }
 

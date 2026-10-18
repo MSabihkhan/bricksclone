@@ -3,7 +3,7 @@ import { BlockingModule } from '../../native/BlockingModule';
 import { detectOem, OemId, OemInfo } from './oemDetection';
 
 export function inAppName(): string {
-  return 'Bricks';
+  return 'fasla';
 }
 
 async function getOem(): Promise<OemInfo> {

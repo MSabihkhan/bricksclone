@@ -29,13 +29,15 @@ object FocusCompletion {
         StateStore.savePendingCompletion(
             SessionCompletion(state.sessionId, endedVia, effectiveEnd, durationSec)
         )
+        val held = StateStore.loadHeldNotifications()
         StateStore.save(null)
+        StateStore.clearHeldNotifications()
         BlockGuard.reset()
         BlockedActivity.dismissAfterUnlock()
-        showSummaryNotification(context, durationSec, state.blockedCount)
+        showSummaryNotification(context, durationSec, state.blockedCount, held)
     }
 
-    private fun showSummaryNotification(context: Context, durationSec: Long, blockedCount: Int) {
+    private fun showSummaryNotification(context: Context, durationSec: Long, blockedCount: Int, held: Map<String, Int>) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -62,15 +64,26 @@ object FocusCompletion {
         )
         val duration = formatDuration(durationSec)
         val blockedText = if (blockedCount == 1) "1 distraction blocked" else "$blockedCount distractions blocked"
+        val heldTotal = held.values.sum()
+        val summary = if (heldTotal > 0) {
+            "$duration focused · $blockedText · $heldTotal ${if (heldTotal == 1) "notification" else "notifications"} held"
+        } else {
+            "$duration focused · $blockedText"
+        }
+        val heldDetail = if (heldTotal > 0) {
+            val perApp = held.entries.sortedByDescending { it.value }.take(4)
+                .joinToString(", ") { "${BlockGuard.labelFor(context, it.key)} ${it.value}" }
+            "\nHeld back: $perApp. Open those apps to catch up."
+        } else ""
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_stat_fasla)
             .setContentTitle("Focus complete")
-            .setContentText("$duration focused · $blockedText")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$duration focused · $blockedText"))
+            .setContentText(summary)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(summary + heldDetail))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
-            .setTimeoutAfter(8_000)
+            .setTimeoutAfter(if (heldTotal > 0) 30 * 60_000L else 8_000L)
             .setContentIntent(pendingIntent)
             .build()
 

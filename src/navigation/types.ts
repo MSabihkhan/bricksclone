@@ -1,20 +1,14 @@
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type OnboardingStackParamList = {
-  Intro: undefined;
-  WhyUsageAccess: undefined;
-  GrantUsageAccess: undefined;
-  WhyAccessibility: undefined;
-  GrantAccessibility: undefined;
-  BatteryOptimization: undefined;
-  RegisterTag: undefined;
+  Welcome: undefined;
   SelectApps: undefined;
-  OnboardingDone: undefined;
 };
 
 export type HomeStackParamList = {
   Home: undefined;
-  AddBrick: undefined;
+  /** Register a key. `tagId` comes from the pairing scan; without it the screen scans first. */
+  AddBrick: { tagId?: string } | undefined;
 };
 
 export type SettingsStackParamList = {
@@ -24,12 +18,14 @@ export type SettingsStackParamList = {
   EmergencyHistory: undefined;
   About: undefined;
   PrayerReminder: undefined;
-  ComingSoon: undefined;
+  Permissions: undefined;
+  EditKey: { tagId: string };
 };
 
 export type MainTabsParamList = {
   HomeTab: NavigatorScreenParams<HomeStackParamList>;
   Insights: undefined;
+  ComingSoonTab: undefined;
   SettingsTab: NavigatorScreenParams<SettingsStackParamList>;
 };
 
