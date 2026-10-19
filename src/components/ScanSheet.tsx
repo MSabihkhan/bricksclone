@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, Text, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { PillButton, Sheet, Glyph } from '../ui/kit';
 import { RED, usePalette } from '../theme/palette';
@@ -29,6 +29,9 @@ export function ScanSheet({ visible, scanFor, done, keyName = 'your key', appsCo
   const pal = usePalette();
   const reduce = useReducedMotion();
   const [nfcOff, setNfcOff] = useState(false);
+  // iOS only: the system scan sheet opens per scan, so the user can dismiss it and retry.
+  const [again, setAgain] = useState(false);
+  const [scanRun, setScanRun] = useState(0);
   const ring = useRef(new Animated.Value(0)).current;
   const pop = useRef(new Animated.Value(0)).current;
 
@@ -36,6 +39,18 @@ export function ScanSheet({ visible, scanFor, done, keyName = 'your key', appsCo
     if (!visible) return;
     Promise.all([nfcService.isSupported(), nfcService.isEnabled()]).then(([s, e]) => setNfcOff(!s || !e)).catch(() => {});
   }, [visible]);
+
+  const prompt = scanFor === 'pair' ? 'Hold your iPhone near the new key' : `Hold your iPhone near ${keyName}`;
+  useEffect(() => {
+    if (Platform.OS !== 'ios' || !visible || done) return;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setAgain(false);
+    nfcService.scan(prompt)
+      .then(() => { if (live) timer = setTimeout(() => setAgain(true), 900); })
+      .catch(() => {});
+    return () => { live = false; clearTimeout(timer); nfcService.cancelScan().catch(() => {}); };
+  }, [visible, done, prompt, scanRun]);
 
   useEffect(() => {
     if (!visible || done || reduce) return;
@@ -53,9 +68,10 @@ export function ScanSheet({ visible, scanFor, done, keyName = 'your key', appsCo
   const title = done ? (scanFor === 'start' ? 'Locked in' : scanFor === 'pair' ? 'Key found' : 'Unlocked') : 'Ready to scan';
   const sub = done
     ? scanFor === 'start' ? `${appsCount} apps held closed` : scanFor === 'pair' ? 'Let’s give it a name.' : 'Nice work. Apps are back.'
-    : nfcOff ? 'NFC is off. Turn it on to tap your key.'
+    : nfcOff ? (Platform.OS === 'ios' ? 'This iPhone can’t read NFC keys.' : 'NFC is off. Turn it on to tap your key.')
     : scanFor === 'pair' ? 'Hold your phone to the new key' : `Hold the top of your phone near ${keyName}`;
-  const status = done ? 'CARD DETECTED' : nfcOff ? 'NFC IS OFF' : 'LISTENING FOR NFC';
+  const status = done ? 'CARD DETECTED' : nfcOff ? (Platform.OS === 'ios' ? 'NFC UNAVAILABLE' : 'NFC IS OFF') : again ? 'TAP SCAN AGAIN' : 'LISTENING FOR NFC';
+  const showSettings = nfcOff && !done && Platform.OS !== 'ios';
 
   const ringStyle = (offset: number) => {
     const t = Animated.modulo(Animated.add(ring, offset), 1);
@@ -89,10 +105,16 @@ export function ScanSheet({ visible, scanFor, done, keyName = 'your key', appsCo
           )}
         </View>
         <Text style={{ fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.76, color: pal.cFF5A5F }}>{status}</Text>
-        <Pressable onPress={nfcOff && !done ? () => nfcService.openSettings().catch(() => {}) : onTrouble} hitSlop={8} accessibilityRole="button" style={{ marginTop: 18 }}>
-          <Text style={{ fontFamily: fonts.body, fontSize: 14, color: pal.cD8D8DC, textDecorationLine: 'underline' }}>{nfcOff && !done ? 'Open NFC settings' : 'Having trouble scanning?'}</Text>
+        <Pressable onPress={showSettings ? () => nfcService.openSettings().catch(() => {}) : onTrouble} hitSlop={8} accessibilityRole="button" style={{ marginTop: 18 }}>
+          <Text style={{ fontFamily: fonts.body, fontSize: 14, color: pal.cD8D8DC, textDecorationLine: 'underline' }}>{showSettings ? 'Open NFC settings' : 'Having trouble scanning?'}</Text>
         </Pressable>
       </View>
+      {Platform.OS === 'ios' && again && !done && !nfcOff ? (
+        <PillButton label="Scan again" onPress={() => setScanRun(n => n + 1)} height={56} style={{ marginTop: 16 }} textStyle={{ fontFamily: fonts.bodyMedium }} />
+      ) : null}
+      {__DEV__ && Platform.OS === 'ios' && !done ? (
+        <PillButton label="Use test key (debug)" kind="outline" onPress={() => nfcService.simulateTap()} height={56} style={{ marginTop: 16 }} textStyle={{ fontFamily: fonts.bodyMedium }} />
+      ) : null}
       <PillButton label="Cancel" onPress={onClose} kind="muted" height={56} style={{ marginTop: 16 }} textStyle={{ fontFamily: fonts.bodyMedium }} />
     </Sheet>
   );

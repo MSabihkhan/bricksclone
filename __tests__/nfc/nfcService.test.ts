@@ -112,4 +112,81 @@ describe('NfcService', () => {
       expect(mockDriver.stop).toHaveBeenCalled();
     });
   });
+
+  describe('active scan (iOS)', () => {
+    beforeEach(() => {
+      mockDriver.scanOnce = jest.fn();
+      mockDriver.cancelScan = jest.fn().mockResolvedValue(undefined);
+    });
+
+    it('fans a scanned tag out to every subscriber with a normalized id', async () => {
+      (mockDriver.scanOnce as jest.Mock).mockResolvedValue({ id: '04:a1:b2', techTypes: [] });
+      const a = jest.fn();
+      const b = jest.fn();
+      service.subscribe(a);
+      service.subscribe(b);
+
+      await expect(service.scan('Hold near key')).resolves.toBe('tag');
+
+      expect(mockDriver.scanOnce).toHaveBeenCalledWith('Hold near key');
+      expect(a).toHaveBeenCalledWith({ id: '04A1B2', techTypes: [] });
+      expect(b).toHaveBeenCalledWith({ id: '04A1B2', techTypes: [] });
+    });
+
+    it('reports a cancelled scan without calling subscribers', async () => {
+      (mockDriver.scanOnce as jest.Mock).mockResolvedValue(null);
+      const handler = jest.fn();
+      service.subscribe(handler);
+
+      await expect(service.scan('Hold near key')).resolves.toBe('cancelled');
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('runs scans one at a time', async () => {
+      let release: (tag: NfcTag | null) => void = () => {};
+      (mockDriver.scanOnce as jest.Mock)
+        .mockReturnValueOnce(new Promise(resolve => { release = resolve; }))
+        .mockResolvedValueOnce({ id: 'BB', techTypes: [] });
+
+      const first = service.scan('one');
+      const second = service.scan('two');
+      await flush();
+      expect(mockDriver.scanOnce).toHaveBeenCalledTimes(1);
+
+      release({ id: 'AA', techTypes: [] });
+      await first;
+      await second;
+      expect(mockDriver.scanOnce).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops a queued scan once cancelScan has been called', async () => {
+      let release: (tag: NfcTag | null) => void = () => {};
+      (mockDriver.scanOnce as jest.Mock).mockReturnValueOnce(new Promise(resolve => { release = resolve; }));
+
+      const first = service.scan('one');
+      const queued = service.scan('two');
+      await flush();
+      await service.cancelScan();
+      release(null);
+
+      await first;
+      await expect(queued).resolves.toBe('cancelled');
+      expect(mockDriver.scanOnce).toHaveBeenCalledTimes(1);
+      expect(mockDriver.cancelScan).toHaveBeenCalled();
+    });
+
+    it('cancels without a native scan when the driver has none', async () => {
+      delete mockDriver.scanOnce;
+      await expect(service.scan('x')).resolves.toBe('cancelled');
+    });
+  });
+
+  it('simulateTap delivers the debug key to subscribers', () => {
+    const handler = jest.fn();
+    service.subscribe(handler);
+    service.simulateTap();
+    expect(handler).toHaveBeenCalledWith({ id: 'DEADBEEF', techTypes: [] });
+    service.simulateTap('ab:cd:ef:01');
+    expect(handler).toHaveBeenLastCalledWith({ id: 'ABCDEF01', techTypes: [] });
+  });
 });

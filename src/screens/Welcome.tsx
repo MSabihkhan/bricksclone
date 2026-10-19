@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Easing, NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, BackHandler, Easing, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { OnboardingHeader } from '../components/OnboardingHeader';
@@ -139,6 +139,7 @@ export function Welcome() {
   const pairStatus = pair === 'paired' ? `Paired · “${brickName}” is yours`
     : pair === 'off' ? 'NFC is off · turn it on in settings'
     : pair === 'unsupported' ? 'This phone can’t read NFC'
+    : Platform.OS === 'ios' ? 'Tap “Scan key”, then hold your iPhone to the card'
     : 'Listening for your key…';
 
   return (
@@ -171,6 +172,14 @@ export function Welcome() {
               <View style={[styles.dot, { backgroundColor: pairColor }]} />
               <Text style={[styles.statusText, { color: pairColor }]} numberOfLines={1}>{pairStatus}</Text>
             </View>
+            {__DEV__ && Platform.OS === 'ios' && pair === 'waiting' ? (
+              <PillButton label="Use test key (debug)" kind="outline" height={48} style={{ marginTop: 10, alignSelf: 'center', paddingHorizontal: 32 }}
+                onPress={() => nfcService.simulateTap()} />
+            ) : null}
+            {Platform.OS === 'ios' && pair === 'waiting' ? (
+              <PillButton label="Scan key" kind="outline" height={48} style={{ marginTop: 16, alignSelf: 'center', paddingHorizontal: 32 }}
+                onPress={() => { nfcService.scan('Hold your iPhone near your key').catch(() => {}); }} />
+            ) : null}
           </View>
 
           <View style={[styles.page, styles.pageTight, { width }]}>

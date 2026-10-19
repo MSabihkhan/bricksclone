@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Button } from './Button';
 import { Icon } from './Icon';
-import { Theme } from '../theme';
+import { Theme, displayFont } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
 import { getRoutine, RoutineType } from '../features/rituals';
 import { useKeyboardInset } from '../hooks/useKeyboardInset';
@@ -73,7 +73,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginBottom: 18 },
   headerCopy: { flex: 1 },
   kicker: { color: theme.colors.accent, fontFamily: 'IBMPlexMono-Medium', fontSize: 10, letterSpacing: 0.55, marginBottom: 8 },
-  title: { color: theme.colors.text, fontFamily: 'BricolageGrotesque', fontSize: 29, lineHeight: 33, letterSpacing: -1.4 },
+  title: { color: theme.colors.text, fontFamily: displayFont, fontSize: 29, lineHeight: 33, letterSpacing: -1.4 },
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
   input: { minHeight: 92, maxHeight: 140, borderRadius: 17, backgroundColor: theme.colors.card2, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, color: theme.colors.text, fontSize: 17, lineHeight: 24, padding: 16, textAlignVertical: 'top' },
   coach: { borderLeftWidth: 2, borderLeftColor: theme.colors.accent, paddingLeft: 12, marginVertical: 18 },

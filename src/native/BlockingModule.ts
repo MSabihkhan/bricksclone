@@ -72,6 +72,11 @@ const moduleImpl = raw
       setPersonaEnabled: (enabled: boolean): Promise<void> => raw.setPersonaEnabled(enabled),
       setSilenceEnabled: (enabled: boolean): Promise<void> => raw.setSilenceEnabled(enabled),
       getSilenceEnabled: (): Promise<boolean> => raw.getSilenceEnabled(),
+      // iOS only (Screen Time); the Android module does not define these.
+      hasScreenTimeAccess: (): Promise<boolean> => (raw.hasScreenTimeAccess ? raw.hasScreenTimeAccess() : Promise.resolve(false)),
+      requestScreenTimeAccess: (): Promise<boolean> => (raw.requestScreenTimeAccess ? raw.requestScreenTimeAccess() : Promise.resolve(false)),
+      /** Resolves with the chosen apps, or null if the user cancelled. */
+      pickBlockedApps: (): Promise<InstalledApp[] | null> => (raw.pickBlockedApps ? raw.pickBlockedApps() : Promise.resolve(null)),
     }
   : {
       startBlocking: stub,
@@ -101,6 +106,9 @@ const moduleImpl = raw
       setPersonaEnabled: stub,
       setSilenceEnabled: stub,
       getSilenceEnabled: () => Promise.resolve(true),
+      hasScreenTimeAccess: () => Promise.resolve(false),
+      requestScreenTimeAccess: () => Promise.resolve(false),
+      pickBlockedApps: (): Promise<InstalledApp[] | null> => Promise.resolve(null),
     };
 
 export const BlockingModule = moduleImpl;

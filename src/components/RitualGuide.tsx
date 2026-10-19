@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
-import { Theme } from '../theme';
+import { Theme, displayFont } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
 import { RITUAL_STEPS, ROUTINES } from '../features/rituals';
 
@@ -69,7 +69,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   sheet: { maxHeight: '90%', backgroundColor: theme.colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 12, borderColor: theme.colors.border, borderWidth: StyleSheet.hairlineWidth },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: theme.colors.faint, alignSelf: 'center', marginBottom: 16 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  title: { color: theme.colors.text, fontFamily: 'BricolageGrotesque', fontSize: 28, letterSpacing: -1.3 },
+  title: { color: theme.colors.text, fontFamily: displayFont, fontSize: 28, letterSpacing: -1.3 },
   close: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.colors.card2, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingBottom: 32 },
   lead: { color: theme.colors.muted, fontSize: 14, lineHeight: 21 },

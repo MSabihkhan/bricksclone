@@ -12,4 +12,9 @@ export interface NfcDriver {
   clearTagListener(): Promise<void>;
   getLaunchTag(): Promise<NfcTag | null>;
   openNfcSettings(): Promise<void>;
+  /** iOS cannot listen passively: every read opens the system scan sheet via `scanOnce`. */
+  readonly requiresActiveScan?: boolean;
+  /** Resolves with the tag, or null when the scan was cancelled or failed. */
+  scanOnce?(prompt: string): Promise<NfcTag | null>;
+  cancelScan?(): Promise<void>;
 }

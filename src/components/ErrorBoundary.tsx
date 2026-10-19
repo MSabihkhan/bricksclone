@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Platform } from 'react-native';
 
 interface Props {
   children: React.ReactNode;
@@ -42,6 +42,6 @@ const styles = StyleSheet.create({
   scroll: { padding: 24, paddingTop: 60 },
   title: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginBottom: 12 },
   message: { color: '#FFFFFF', fontSize: 14, fontWeight: '600', marginBottom: 16 },
-  stack: { color: '#8A9099', fontSize: 11, fontFamily: 'monospace' },
+  stack: { color: '#8A9099', fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   hint: { color: '#8A9099', fontSize: 13, fontWeight: '600', marginTop: 20 },
 });

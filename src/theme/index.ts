@@ -1,3 +1,9 @@
+import { Platform } from 'react-native';
+
+// iOS looks fonts up by PostScript name. This is the variable font's default
+// instance, which is what Android renders from the bare file name.
+export const displayFont = Platform.OS === 'ios' ? 'BricolageGrotesque-96ptExtraBold' : 'BricolageGrotesque';
+
 export type ColorMode = 'dark' | 'light';
 
 export interface ColorTokens {
@@ -76,10 +82,10 @@ export const radius = {
 };
 
 export const typography = {
-  display: { fontFamily: 'BricolageGrotesque', fontSize: 40, fontWeight: '400', letterSpacing: -2.0, lineHeight: 43 } as const,
+  display: { fontFamily: displayFont, fontSize: 40, fontWeight: '400', letterSpacing: -2.0, lineHeight: 43 } as const,
   statLarge: { fontFamily: 'IBMPlexMono-Medium', fontSize: 42, fontWeight: '500', letterSpacing: -1.2 } as const,
-  onboardingTitle: { fontFamily: 'BricolageGrotesque', fontSize: 34, fontWeight: '400', letterSpacing: -1.8, lineHeight: 38 } as const,
-  screenTitle: { fontFamily: 'BricolageGrotesque', fontSize: 30, fontWeight: '400', letterSpacing: -1.8, lineHeight: 34 } as const,
+  onboardingTitle: { fontFamily: displayFont, fontSize: 34, fontWeight: '400', letterSpacing: -1.8, lineHeight: 38 } as const,
+  screenTitle: { fontFamily: displayFont, fontSize: 30, fontWeight: '400', letterSpacing: -1.8, lineHeight: 34 } as const,
   heroTime: { fontFamily: 'IBMPlexMono-Medium', fontSize: 40, fontWeight: '500', letterSpacing: -1.2, lineHeight: 44 } as const,
   timer: { fontFamily: 'IBMPlexMono-Regular', fontSize: 46, fontWeight: '400', letterSpacing: -1.8, lineHeight: 52 } as const,
   cardTitle: { fontSize: 16, fontWeight: '700', letterSpacing: -0.2 } as const,

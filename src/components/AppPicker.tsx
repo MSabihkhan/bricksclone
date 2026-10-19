@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, SectionList, Text, TextInput, View } from 'react-native';
 import { BlockingModule, InstalledApp } from '../native/BlockingModule';
 import { db } from '../db';
 import { BlockedApp } from '../db/types';
 import { RED, usePalette } from '../theme/palette';
 import { fonts } from '../theme/fonts';
 import { AppLetter, CheckRing, Eyebrow, Frame, Glyph, PillButton, RoundButton, Title } from '../ui/kit';
+import { AppPickerProps, IosAppPicker } from './IosAppPicker';
 
 /** The design's USUAL SUSPECTS, matched against what is actually installed. */
 export const USUAL_SUSPECTS = [
@@ -29,17 +30,12 @@ export function splitApps(apps: InstalledApp[], query: string): { suspects: Inst
   return { suspects, others };
 }
 
-interface Props {
-  eyebrow: string;
-  onBack: () => void;
-  /** Called once the main list is saved. */
-  onDone: () => void;
-  /** Onboarding offers "Choose later". */
-  onLater?: () => void;
+/** Choose apps / Blocked apps (Fasla Redesign v2). Saves the main blocked-apps list. */
+export function AppPicker(props: AppPickerProps) {
+  return Platform.OS === 'ios' ? <IosAppPicker {...props} /> : <ListAppPicker {...props} />;
 }
 
-/** Choose apps / Blocked apps (Fasla Redesign v2). Saves the main blocked-apps list. */
-export function AppPicker({ eyebrow, onBack, onDone, onLater }: Props) {
+function ListAppPicker({ eyebrow, onBack, onDone, onLater }: AppPickerProps) {
   const pal = usePalette();
   const [loading, setLoading] = useState(true);
   const [apps, setApps] = useState<InstalledApp[]>([]);

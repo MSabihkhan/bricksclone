@@ -7,22 +7,100 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0098C92EE607E63EA47ECAAA /* Archivo-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 75A014DF40AA03A11CEFF171 /* Archivo-ExtraBold.ttf */; };
+		08B7F1EC2A3A3C89375A3E5A /* BricksBlocking.m in Sources */ = {isa = PBXBuildFile; fileRef = 27A930FEE2F7D2CAACF1B795 /* BricksBlocking.m */; };
+		0BE637BAEA27CF6858D621C7 /* FaslaShield.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EAF5E97741C32C3775832466 /* FaslaShield.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0C64BE2D3AADE2B5A68B303E /* JetBrainsMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 384D8668825563327E269DE0 /* JetBrainsMono-Medium.ttf */; };
 		0C80B921A6F3F58F76C31292 /* libPods-BricksApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-BricksApp.a */; };
+		0F6545B63C95DE33AF85FB0B /* Geist-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B62732BB401FB1D64734F352 /* Geist-Medium.ttf */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		14C22D8BD6FE8A7A48C3F070 /* Geist-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 12654AB0C20E0189764C82D4 /* Geist-SemiBold.ttf */; };
+		20D0515F0FD9514276868DBF /* IBMPlexMono-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 925865552D5353A263D770D2 /* IBMPlexMono-Medium.ttf */; };
+		2A8EAE745133740E457C2BD5 /* JetBrainsMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 399F0633786AF1F890EF8B75 /* JetBrainsMono-Regular.ttf */; };
+		2CC939271870975E242772CB /* Geist-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 400C967F93C8257BA87F3A14 /* Geist-Regular.ttf */; };
+		31DD5B22E8349D7392874E2E /* FaslaShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A47B8A0D04A1701B831B71C /* FaslaShared.swift */; };
+		3AA82D384C6110144513DCFB /* DeviceActivityMonitorExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7396B6C73CCADA246AA2A8 /* DeviceActivityMonitorExtension.swift */; };
+		5D39E6221BB3C1A242309E9F /* BricolageGrotesque.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0B4AE6EC0A6CF53A6EBBAAD /* BricolageGrotesque.ttf */; };
+		63238B0841648B6BA3847ABD /* IBMPlexMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = B08D3EB9C2104F1D726760B6 /* IBMPlexMono-Regular.ttf */; };
+		6CBA454BDAF82F8B030CEBC7 /* Archivo-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3DA84A586ED2F13D7C0A0F4B /* Archivo-Black.ttf */; };
+		6CD3A529D2DCF634FB5030E3 /* FaslaMonitor.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1E4851A75E0E4E3A2C93DA34 /* FaslaMonitor.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		70D286BBB4B940057F2492B3 /* ActivityPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E55DAAE347E461DA549CB04D /* ActivityPicker.swift */; };
+		72EA2AA7D8BF5BBBC16D6EC5 /* ShieldConfigurationExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68EEC8BB2DA75D03855F672F /* ShieldConfigurationExtension.swift */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		7EC61382340DDF66F52700E9 /* FaslaShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A47B8A0D04A1701B831B71C /* FaslaShared.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		931259E8F9F1CEBAFC97C2FF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB93D9C10A033DB911247B8F /* Foundation.framework */; };
+		B11B6E7328E44E914CBC3B35 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB93D9C10A033DB911247B8F /* Foundation.framework */; };
+		C4349FA59FC335754632DE29 /* BricksBlocking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4909E1866202D076789E15 /* BricksBlocking.swift */; };
+		D4E097607C6AECDFD20D179D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		F31380A8BFFAD4523F394A5C /* FaslaShared.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A47B8A0D04A1701B831B71C /* FaslaShared.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		55DEA656BC354302933D6451 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 246F712DF756C6AF6DD9CED9;
+			remoteInfo = FaslaShield;
+		};
+		62579745120E55A1773D6045 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6629596E4B4E0300B1259FD7;
+			remoteInfo = FaslaMonitor;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1280235FE138E57D698CBA8B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0BE637BAEA27CF6858D621C7 /* FaslaShield.appex in Embed Foundation Extensions */,
+				6CD3A529D2DCF634FB5030E3 /* FaslaMonitor.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		12654AB0C20E0189764C82D4 /* Geist-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Geist-SemiBold.ttf"; path = "BricksApp/Fonts/Geist-SemiBold.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* BricksApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BricksApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = BricksApp/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = BricksApp/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = BricksApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1E4851A75E0E4E3A2C93DA34 /* FaslaMonitor.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FaslaMonitor.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		27A930FEE2F7D2CAACF1B795 /* BricksBlocking.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = BricksBlocking.m; path = BricksApp/BricksBlocking.m; sourceTree = "<group>"; };
+		28EAACCD5DE6F06E94EC2D17 /* FaslaShield.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = FaslaShield.entitlements; sourceTree = "<group>"; };
+		384D8668825563327E269DE0 /* JetBrainsMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "JetBrainsMono-Medium.ttf"; path = "BricksApp/Fonts/JetBrainsMono-Medium.ttf"; sourceTree = "<group>"; };
+		399F0633786AF1F890EF8B75 /* JetBrainsMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "JetBrainsMono-Regular.ttf"; path = "BricksApp/Fonts/JetBrainsMono-Regular.ttf"; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-BricksApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BricksApp.debug.xcconfig"; path = "Target Support Files/Pods-BricksApp/Pods-BricksApp.debug.xcconfig"; sourceTree = "<group>"; };
+		3DA84A586ED2F13D7C0A0F4B /* Archivo-Black.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Archivo-Black.ttf"; path = "BricksApp/Fonts/Archivo-Black.ttf"; sourceTree = "<group>"; };
+		400C967F93C8257BA87F3A14 /* Geist-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Geist-Regular.ttf"; path = "BricksApp/Fonts/Geist-Regular.ttf"; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-BricksApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BricksApp.release.xcconfig"; path = "Target Support Files/Pods-BricksApp/Pods-BricksApp.release.xcconfig"; sourceTree = "<group>"; };
+		5B4909E1866202D076789E15 /* BricksBlocking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BricksBlocking.swift; path = BricksApp/BricksBlocking.swift; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-BricksApp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BricksApp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		68EEC8BB2DA75D03855F672F /* ShieldConfigurationExtension.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShieldConfigurationExtension.swift; sourceTree = "<group>"; };
+		6A47B8A0D04A1701B831B71C /* FaslaShared.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FaslaShared.swift; sourceTree = "<group>"; };
+		6B7396B6C73CCADA246AA2A8 /* DeviceActivityMonitorExtension.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DeviceActivityMonitorExtension.swift; sourceTree = "<group>"; };
+		75A014DF40AA03A11CEFF171 /* Archivo-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Archivo-ExtraBold.ttf"; path = "BricksApp/Fonts/Archivo-ExtraBold.ttf"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = BricksApp/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = BricksApp/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		866AC0E5836270565FB6AFAD /* FaslaMonitor.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = FaslaMonitor.entitlements; sourceTree = "<group>"; };
+		925865552D5353A263D770D2 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "IBMPlexMono-Medium.ttf"; path = "BricksApp/Fonts/IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; };
+		AB93D9C10A033DB911247B8F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		B08D3EB9C2104F1D726760B6 /* IBMPlexMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "IBMPlexMono-Regular.ttf"; path = "BricksApp/Fonts/IBMPlexMono-Regular.ttf"; sourceTree = "<group>"; };
+		B1A814B5B4161388CCAC7E56 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B62732BB401FB1D64734F352 /* Geist-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = "Geist-Medium.ttf"; path = "BricksApp/Fonts/Geist-Medium.ttf"; sourceTree = "<group>"; };
+		C0B4AE6EC0A6CF53A6EBBAAD /* BricolageGrotesque.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = BricolageGrotesque.ttf; path = BricksApp/Fonts/BricolageGrotesque.ttf; sourceTree = "<group>"; };
+		E2E43C02E5128C6C7CB8FCBB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		E55DAAE347E461DA549CB04D /* ActivityPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ActivityPicker.swift; path = BricksApp/ActivityPicker.swift; sourceTree = "<group>"; };
+		EAF5E97741C32C3775832466 /* FaslaShield.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FaslaShield.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -35,6 +113,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7BFFE80C6F8B4670957798E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				931259E8F9F1CEBAFC97C2FF /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B43AAA8C1B8CEB120E19F7F1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B11B6E7328E44E914CBC3B35 /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -43,9 +137,13 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				5B4909E1866202D076789E15 /* BricksBlocking.swift */,
+				27A930FEE2F7D2CAACF1B795 /* BricksBlocking.m */,
+				C171FE7592DDB866C168B8C9 /* Fonts */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				E55DAAE347E461DA549CB04D /* ActivityPicker.swift */,
 			);
 			name = BricksApp;
 			sourceTree = "<group>";
@@ -55,8 +153,31 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				5DCACB8F33CDC322A6C60F78 /* libPods-BricksApp.a */,
+				FC7AB258C79FBD9EBC8BFAA9 /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5455B46C8958CB29970D3F9C /* FaslaMonitor */ = {
+			isa = PBXGroup;
+			children = (
+				6B7396B6C73CCADA246AA2A8 /* DeviceActivityMonitorExtension.swift */,
+				B1A814B5B4161388CCAC7E56 /* Info.plist */,
+				866AC0E5836270565FB6AFAD /* FaslaMonitor.entitlements */,
+			);
+			name = FaslaMonitor;
+			path = FaslaMonitor;
+			sourceTree = "<group>";
+		};
+		5CEE32881E60D7811E1D99D5 /* FaslaShield */ = {
+			isa = PBXGroup;
+			children = (
+				68EEC8BB2DA75D03855F672F /* ShieldConfigurationExtension.swift */,
+				E2E43C02E5128C6C7CB8FCBB /* Info.plist */,
+				28EAACCD5DE6F06E94EC2D17 /* FaslaShield.entitlements */,
+			);
+			name = FaslaShield;
+			path = FaslaShield;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -74,6 +195,9 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				9EB76C153ED5670A079C0280 /* Shared */,
+				5CEE32881E60D7811E1D99D5 /* FaslaShield */,
+				5455B46C8958CB29970D3F9C /* FaslaMonitor */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -84,8 +208,19 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* BricksApp.app */,
+				EAF5E97741C32C3775832466 /* FaslaShield.appex */,
+				1E4851A75E0E4E3A2C93DA34 /* FaslaMonitor.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		9EB76C153ED5670A079C0280 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				6A47B8A0D04A1701B831B71C /* FaslaShared.swift */,
+			);
+			name = Shared;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
@@ -95,6 +230,31 @@
 				5709B34CF0A7D63546082F79 /* Pods-BricksApp.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		C171FE7592DDB866C168B8C9 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				3DA84A586ED2F13D7C0A0F4B /* Archivo-Black.ttf */,
+				75A014DF40AA03A11CEFF171 /* Archivo-ExtraBold.ttf */,
+				C0B4AE6EC0A6CF53A6EBBAAD /* BricolageGrotesque.ttf */,
+				B62732BB401FB1D64734F352 /* Geist-Medium.ttf */,
+				400C967F93C8257BA87F3A14 /* Geist-Regular.ttf */,
+				12654AB0C20E0189764C82D4 /* Geist-SemiBold.ttf */,
+				925865552D5353A263D770D2 /* IBMPlexMono-Medium.ttf */,
+				B08D3EB9C2104F1D726760B6 /* IBMPlexMono-Regular.ttf */,
+				384D8668825563327E269DE0 /* JetBrainsMono-Medium.ttf */,
+				399F0633786AF1F890EF8B75 /* JetBrainsMono-Regular.ttf */,
+			);
+			name = Fonts;
+			sourceTree = "<group>";
+		};
+		FC7AB258C79FBD9EBC8BFAA9 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				AB93D9C10A033DB911247B8F /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -108,6 +268,7 @@
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
+				1280235FE138E57D698CBA8B /* Embed Foundation Extensions */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
@@ -115,11 +276,47 @@
 			buildRules = (
 			);
 			dependencies = (
+				0E4C802420941AB5AB81A062 /* PBXTargetDependency */,
+				B6D4A487E0229F69BA7E99A1 /* PBXTargetDependency */,
 			);
 			name = BricksApp;
 			productName = BricksApp;
 			productReference = 13B07F961A680F5B00A75B9A /* BricksApp.app */;
 			productType = "com.apple.product-type.application";
+		};
+		246F712DF756C6AF6DD9CED9 /* FaslaShield */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B327E0DCC6F72784D24B3EB8 /* Build configuration list for PBXNativeTarget "FaslaShield" */;
+			buildPhases = (
+				7CAA810CC83144F7CA425D04 /* Sources */,
+				B43AAA8C1B8CEB120E19F7F1 /* Frameworks */,
+				0A9770DC85822806B249048B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FaslaShield;
+			productName = FaslaShield;
+			productReference = EAF5E97741C32C3775832466 /* FaslaShield.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		6629596E4B4E0300B1259FD7 /* FaslaMonitor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 56D20A7F79F130D0CB1FFE54 /* Build configuration list for PBXNativeTarget "FaslaMonitor" */;
+			buildPhases = (
+				6CE8BB2DBC4A370B78BD56EC /* Sources */,
+				A7BFFE80C6F8B4670957798E /* Frameworks */,
+				B626B395DCA47FA6EA7B624E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FaslaMonitor;
+			productName = FaslaMonitor;
+			productReference = 1E4851A75E0E4E3A2C93DA34 /* FaslaMonitor.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -148,17 +345,44 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* BricksApp */,
+				246F712DF756C6AF6DD9CED9 /* FaslaShield */,
+				6629596E4B4E0300B1259FD7 /* FaslaMonitor */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		0A9770DC85822806B249048B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		13B07F8E1A680F5B00A75B9A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				6CBA454BDAF82F8B030CEBC7 /* Archivo-Black.ttf in Resources */,
+				0098C92EE607E63EA47ECAAA /* Archivo-ExtraBold.ttf in Resources */,
+				5D39E6221BB3C1A242309E9F /* BricolageGrotesque.ttf in Resources */,
+				0F6545B63C95DE33AF85FB0B /* Geist-Medium.ttf in Resources */,
+				2CC939271870975E242772CB /* Geist-Regular.ttf in Resources */,
+				14C22D8BD6FE8A7A48C3F070 /* Geist-SemiBold.ttf in Resources */,
+				20D0515F0FD9514276868DBF /* IBMPlexMono-Medium.ttf in Resources */,
+				63238B0841648B6BA3847ABD /* IBMPlexMono-Regular.ttf in Resources */,
+				0C64BE2D3AADE2B5A68B303E /* JetBrainsMono-Medium.ttf in Resources */,
+				2A8EAE745133740E457C2BD5 /* JetBrainsMono-Regular.ttf in Resources */,
+				D4E097607C6AECDFD20D179D /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B626B395DCA47FA6EA7B624E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -189,9 +413,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-BricksApp/Pods-BricksApp-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-BricksApp/Pods-BricksApp-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -228,9 +456,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-BricksApp/Pods-BricksApp-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-BricksApp/Pods-BricksApp-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -245,10 +477,47 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				C4349FA59FC335754632DE29 /* BricksBlocking.swift in Sources */,
+				08B7F1EC2A3A3C89375A3E5A /* BricksBlocking.m in Sources */,
+				70D286BBB4B940057F2492B3 /* ActivityPicker.swift in Sources */,
+				7EC61382340DDF66F52700E9 /* FaslaShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6CE8BB2DBC4A370B78BD56EC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3AA82D384C6110144513DCFB /* DeviceActivityMonitorExtension.swift in Sources */,
+				31DD5B22E8349D7392874E2E /* FaslaShared.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CAA810CC83144F7CA425D04 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72EA2AA7D8BF5BBBC16D6EC5 /* ShieldConfigurationExtension.swift in Sources */,
+				F31380A8BFFAD4523F394A5C /* FaslaShared.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0E4C802420941AB5AB81A062 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = FaslaShield;
+			target = 246F712DF756C6AF6DD9CED9 /* FaslaShield */;
+			targetProxy = 55DEA656BC354302933D6451 /* PBXContainerItemProxy */;
+		};
+		B6D4A487E0229F69BA7E99A1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = FaslaMonitor;
+			target = 6629596E4B4E0300B1259FD7 /* FaslaMonitor */;
+			targetProxy = 62579745120E55A1773D6045 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -257,10 +526,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 93MRZM7S6B;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = BricksApp/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -271,8 +543,9 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.bricks.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.fasla.focus;
 				PRODUCT_NAME = BricksApp;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -287,9 +560,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 93MRZM7S6B;
 				INFOPLIST_FILE = BricksApp/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -300,14 +576,67 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.bricks.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.fasla.focus;
 				PRODUCT_NAME = BricksApp;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		5A9AE124851106720C6E3A54 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 93MRZM7S6B;
+				INFOPLIST_FILE = FaslaMonitor/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fasla.focus.monitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6C477CE0524A6CE489A05F4D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 93MRZM7S6B;
+				INFOPLIST_FILE = FaslaShield/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fasla.focus.shield;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		83CBBA201A601CBA00E9B192 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -358,7 +687,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -370,6 +699,10 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -377,8 +710,14 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -424,7 +763,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
@@ -435,6 +774,10 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -442,8 +785,67 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				USE_HERMES = true;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		881011724F10D107E0179EDE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 93MRZM7S6B;
+				INFOPLIST_FILE = FaslaMonitor/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fasla.focus.monitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		9E58D5335552C6951DAC5734 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 93MRZM7S6B;
+				INFOPLIST_FILE = FaslaShield/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fasla.focus.shield;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -460,11 +862,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		56D20A7F79F130D0CB1FFE54 /* Build configuration list for PBXNativeTarget "FaslaMonitor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				881011724F10D107E0179EDE /* Release */,
+				5A9AE124851106720C6E3A54 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "BricksApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B327E0DCC6F72784D24B3EB8 /* Build configuration list for PBXNativeTarget "FaslaShield" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9E58D5335552C6951DAC5734 /* Release */,
+				6C477CE0524A6CE489A05F4D /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

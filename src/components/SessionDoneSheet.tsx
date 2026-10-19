@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
 import { BrickCard } from './BrickCard';
 import { Button } from './Button';
-import { Theme } from '../theme';
+import { Theme, displayFont } from '../theme';
 import { useTheme } from '../theme/ThemeContext';
 
 export interface SessionSummary { focusSec: number; attempts: number }
@@ -62,7 +62,7 @@ const makeStyles = (theme: Theme) => StyleSheet.create({
   sheet: { backgroundColor: theme.colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 28, gap: 16, alignItems: 'center' },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: theme.colors.faint },
   hero: { marginTop: 58, marginBottom: 6 },   // room for the bubble above the card
-  title: { color: theme.colors.text, fontFamily: 'BricolageGrotesque', fontSize: 26, lineHeight: 30, letterSpacing: -1.2, textAlign: 'center' },
+  title: { color: theme.colors.text, fontFamily: displayFont, fontSize: 26, lineHeight: 30, letterSpacing: -1.2, textAlign: 'center' },
   metrics: { flexDirection: 'row', gap: 10, alignSelf: 'stretch' },
   metric: { flex: 1, backgroundColor: theme.colors.card2, borderRadius: 17, padding: 12 },
   metricValue: { color: theme.colors.text, fontFamily: 'IBMPlexMono-Medium', fontSize: 20, letterSpacing: -0.4 },
